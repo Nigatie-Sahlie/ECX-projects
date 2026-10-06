@@ -1,0 +1,25 @@
+# .NET build output
+**/bin/
+**/obj/
+
+# Local application configuration and secrets
+**/appsettings.json
+**/appsettings.*.json
+!**/appsettings.example.json
+**/.env
+**/.env.*
+!**/.env.example
+
+# Frontend dependencies and build output
+**/node_modules/
+**/dist/
+
+# IDE and OS files
+.vs/
+.vscode/settings.json
+.vscode/launch.json
+.idea/
+*.user
+*.suo
+.DS_Store
+Thumbs.db
