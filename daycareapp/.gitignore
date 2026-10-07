@@ -1,0 +1,17 @@
+bin/
+obj/
+node_modules/
+dist/
+# Local environment files and secrets
+.env
+.env.*
+!.env.example
+
+# Local ASP.NET configuration may contain database passwords and JWT keys
+backend/DaycareApi/appsettings.json
+backend/DaycareApi/appsettings.*.json
+!backend/DaycareApi/appsettings.example.json
+secrets.json
+secrets.*.json
+*.pfx
+*.pem
