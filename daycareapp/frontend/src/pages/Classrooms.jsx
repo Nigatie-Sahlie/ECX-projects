@@ -7,13 +7,24 @@ const blank = { name: '', ageGroup: '', capacity: 10 }
 export default function Classrooms() {
   const [rooms, reload, loadErr] = useLoad(() => api('/classrooms'))
   const [f, setF] = useState(blank)
+  const [edit, setEdit] = useState(null)
+  const [showAdd, setShowAdd] = useState(false)
   const [run, err] = useAction()
 
   const add = async (e) => {
     e.preventDefault()
     if (await run(() => api('/classrooms', { method: 'POST', body: { ...f, capacity: Number(f.capacity) } }))) {
       setF(blank)
+      setShowAdd(false)
       reload()
+    }
+  }
+  const save = async (e) => {
+    e.preventDefault()
+    if (await run(() => api(`/classrooms/${edit.id}`, { method: 'PUT', body: {
+      name: edit.name, ageGroup: edit.ageGroup, capacity: Number(edit.capacity),
+    } }))) {
+      setEdit(null); reload()
     }
   }
 
@@ -21,7 +32,8 @@ export default function Classrooms() {
     <>
       <h1>Classrooms</h1>
       <Notice>{loadErr}</Notice>
-      <section className="panel">
+      <button className="btn" onClick={() => setShowAdd(!showAdd)}>{showAdd ? 'Close classroom form' : 'Add classroom'}</button>
+      {showAdd && <section className="panel">
         <h2>Add a classroom</h2>
         <form className="grid" onSubmit={add}>
           <Field label="Name"><input required value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></Field>
@@ -30,7 +42,7 @@ export default function Classrooms() {
           <div className="full"><button className="btn">Add classroom</button></div>
         </form>
         <Notice>{err}</Notice>
-      </section>
+      </section>}
       <section className="panel">
         <h2>All classrooms</h2>
         {!rooms ? null : rooms.length === 0 ? (
@@ -38,7 +50,17 @@ export default function Classrooms() {
         ) : (
           rooms.map((r) => (
             <div className="row" key={r.id}>
-              <div className="grow"><strong>{r.name}</strong><div className="muted">{r.ageGroup} · up to {r.capacity} children</div></div>
+              <div className="grow">
+                {edit?.id === r.id ? (
+                  <form className="grid" onSubmit={save}>
+                    <Field label="Name"><input required value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} /></Field>
+                    <Field label="Age group"><input value={edit.ageGroup || ''} onChange={(e) => setEdit({ ...edit, ageGroup: e.target.value })} /></Field>
+                    <Field label="Capacity"><input required type="number" min="1" value={edit.capacity} onChange={(e) => setEdit({ ...edit, capacity: e.target.value })} /></Field>
+                    <div className="actions"><button className="btn">Save</button><button type="button" className="btn ghost" onClick={() => setEdit(null)}>Cancel</button></div>
+                  </form>
+                ) : <><strong>{r.name}</strong><div className="muted">{r.ageGroup} · up to {r.capacity} children</div></>}
+              </div>
+              {edit?.id !== r.id && <button className="btn ghost" onClick={() => setEdit({ id: r.id, name: r.name, ageGroup: r.ageGroup, capacity: r.capacity })}>Edit</button>}
             </div>
           ))
         )}

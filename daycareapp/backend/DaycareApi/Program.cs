@@ -10,6 +10,7 @@ var cfg = builder.Configuration;
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddDbContext<AppDb>(o => o.UseNpgsql(cfg.GetConnectionString("Default")));
 builder.Services.AddSingleton<TokenService>();
+builder.Services.AddSingleton<IEmailSender, SmtpEmailSender>();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(o =>
 {
@@ -29,17 +30,21 @@ builder.Services.AddCors(o => o.AddDefaultPolicy(p =>
 
 var app = builder.Build();
 
-// MVP shortcut: create the database and tables on first run.
-// Switch to EF Core migrations (dotnet ef migrations add Init) before production.
+app.UseMiddleware<ApiExceptionMiddleware>();
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDb>();
-    db.Database.EnsureCreated();
+    if (app.Environment.IsDevelopment())
+        db.Database.Migrate();
+
     Seed.Run(db);
 }
 
 app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
+app.MapAuthApi();
 app.MapApi();
 app.Run();
+
+public partial class Program { }

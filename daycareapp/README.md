@@ -7,11 +7,17 @@ Multi-daycare management app. **.NET 8 Web API + PostgreSQL + React (Vite).**
 1. .NET 8 SDK: https://dotnet.microsoft.com/download/dotnet/8.0
 2. Node.js 20 or newer: https://nodejs.org
 3. PostgreSQL 16: https://www.postgresql.org/download/ (remember the `postgres` user's password)
+4. EF Core 8 CLI tool:
+
+```bash
+dotnet tool install --global dotnet-ef --version 8.*
+```
 
 ## Run it
 
 **1. Database.** Edit `backend/DaycareApi/appsettings.json` and set your PostgreSQL password in `ConnectionStrings:Default`.
-The database `daycareapp`, all tables and demo data are created automatically on first start.
+The database must exist before the first start. In development, pending EF Core migrations
+are applied automatically and demo data is seeded afterward.
 
 **2. Backend** (http://localhost:5000)
 
@@ -44,7 +50,7 @@ Change these, and the `Jwt:Key` in `appsettings.json`, before real use.
 ## Who can do what
 
 - **Super admin**: create, enable and disable daycares; creates each daycare's first admin.
-- **Admin**: staff, classrooms, children, guardians (with optional parent logins), attendance, reports, announcements for their own daycare.
+- **Admin**: staff, classrooms, children, guardians (with optional parent logins), attendance, reports, announcements for their own daycare. Staff profiles can be updated or reassigned to classrooms; the children view supports server-side filtering by name, classroom, assigned staff, and active status.
 - **Staff**: only children in their assigned classrooms: check-in/out, daily reports, announcements to their classrooms.
 - **Parent**: only their own children: shared daily reports, attendance history, announcements.
 
@@ -57,9 +63,93 @@ Tables: `Centers, Users, StaffProfiles, Classrooms, StaffClassrooms, Guardians, 
 - Check constraint: only `super_admin` may have no `CenterId`.
 - "Today" for attendance uses Ethiopia time (UTC+3), set by `EatHours` in `Endpoints.cs`.
 
+## EF Core migrations
+
+The project uses the `Microsoft.EntityFrameworkCore.Design` 8.x package for migration
+scaffolding. The `dotnet-ef` 8.x CLI tool is required for the commands below. The design
+package is marked as a private development dependency and is not included in the deployed
+application.
+
+From `backend/DaycareApi`:
+
+```bash
+# Create a migration after changing Models.cs or AppDb.cs
+dotnet ef migrations add <MigrationName>
+
+# Apply pending migrations to the configured database
+dotnet ef database update
+```
+
+Development startup runs `Database.Migrate()` before `Seed.Run(db)`. Production startup
+does not apply migrations automatically; run `dotnet ef database update` as part of the
+deployment process.
+
+### Permission integration tests
+
+The backend includes a small xUnit integration suite using a separate PostgreSQL database.
+It refuses to run if the configured database is named `daycareapp`; the test database is
+never dropped or cleared.
+
+Create an empty database such as `daycareapp_test`, then run:
+
+```bash
+cd backend
+export DAYCARE_TEST_CONNECTION='Host=localhost;Port=5432;Database=daycareapp_test;Username=postgres;Password=...'
+dotnet test DaycareApi.Tests/DaycareApi.Tests.csproj
+```
+
+The test host creates the schema with `EnsureCreated`, starts the API in the `Testing`
+environment, and uses the seeded demo accounts to verify authentication and role-based
+endpoint permissions. Keep `DAYCARE_TEST_CONNECTION` pointed at a disposable test
+database; no production code path is changed by the test host.
+
+### Moving a database created with EnsureCreated
+
+`EnsureCreated()` does not create the `__EFMigrationsHistory` table, so an existing database
+created that way cannot safely be treated as an already-migrated database. Do not start the
+updated application against that database until it has been migrated or recreated.
+
+For this demo database, the safest option is to stop the API, drop only the `daycareapp`
+database, recreate an empty database with the same name, and then run the first migration
+with `dotnet ef database update` (or start the API in development). This removes the demo
+data, so confirm that the database may be destroyed before doing it. If the data must be
+preserved, take a backup and use a deliberate baseline/data-migration plan instead of
+dropping it.
+
 ## Before going to production
 
-- Replace `EnsureCreated()` in `Program.cs` with EF Core migrations (`dotnet ef migrations add Init`).
 - Use a real secret for `Jwt:Key` (environment variable), and serve over HTTPS.
-- Not included yet: password reset, refresh tokens, child photos, payments, messaging.
-- This project was written without being compiled or run in the authoring environment, so expect to fix a typo or two on first build.
+- Configure `Smtp` and `Frontend:ResetPasswordUrl` in `appsettings.json` for forgot-password emails.
+- Payments are intentionally deferred.
+
+## Authentication and modular structure
+
+Authentication endpoints are grouped in `AuthEndpoints.cs`. The forgot-password flow
+stores only a hash of a short-lived, single-use reset token. Requests return the same
+message whether or not an email exists, preventing account enumeration. Configure SMTP
+with environment-specific settings or a secret manager; do not commit SMTP passwords.
+
+Example local configuration shape:
+
+```json
+{
+  "Frontend": {
+    "ResetPasswordUrl": "http://localhost:5173/reset-password"
+  },
+  "Smtp": {
+    "Enabled": true,
+    "Host": "smtp.example.com",
+    "Port": 587,
+    "UseSsl": true,
+    "From": "no-reply@example.com",
+    "Username": "smtp-user",
+    "Password": "set-this-outside-source-control"
+  }
+}
+```
+
+The backend keeps authentication infrastructure (`AuthEndpoints.cs`, `Infrastructure.cs`)
+separate from the feature endpoint mappings in `Endpoints.cs`. `ApiExceptionMiddleware`
+provides a single safe error response for unexpected API failures while logging the
+diagnostic server-side. New feature modules should follow the same pattern: focused
+endpoint mapping, request records, services, and tests rather than growing one handler.

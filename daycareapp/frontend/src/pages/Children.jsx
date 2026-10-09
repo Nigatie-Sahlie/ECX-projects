@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { api, age } from '../api'
 import { useAuth } from '../App.jsx'
-import { Empty, Field, Notice, useAction, useLoad } from '../ui.jsx'
+import { Empty, Field, Notice, Pagination, PasswordField, SearchBox, useAction, useLoad } from '../ui.jsx'
 
 const blank = { firstName: '', lastName: '', dateOfBirth: '', classroomId: '', allergies: '', medicalNotes: '' }
 const RELATIONS = ['Mother', 'Father', 'Grandparent', 'Other guardian']
@@ -19,6 +19,7 @@ function GuardianPanel({ child, guardians, reload, reloadGuardians }) {
   const [link, setLink] = useState({ guardianId: '', relationship: 'Mother', isPrimary: false, canPickup: true })
   const fresh = { fullName: '', phone: '', email: '', password: '', relationship: 'Mother', isPrimary: false, canPickup: true }
   const [g, setG] = useState(fresh)
+  const [editing, setEditing] = useState(null)
   const linked = new Set(child.guardians.map((x) => x.guardianId))
   const available = (guardians || []).filter((x) => !linked.has(x.id))
 
@@ -56,19 +57,38 @@ function GuardianPanel({ child, guardians, reload, reloadGuardians }) {
           <div className="full"><button className="btn">Link guardian</button></div>
         </form>
       )}
+      {child.guardians.map((guardian) => (
+        <div className="row" key={`guardian-${guardian.guardianId}`}>
+          <div className="grow"><strong>{guardian.fullName}</strong><div className="muted">{guardian.relationship} · {guardian.phone || guardian.email || 'No contact details'}</div></div>
+          <button type="button" className="btn ghost" onClick={() => setEditing({ guardianId: guardian.guardianId, fullName: guardian.fullName, phone: guardian.phone || '', email: guardian.email || '', relationship: guardian.relationship || 'Mother', isPrimary: !!guardian.isPrimary, canPickup: guardian.canPickup !== false })}>Edit</button>
+        </div>
+      ))}
       <form className="grid" onSubmit={doCreate}>
         <h3 className="full">Add a new guardian</h3>
         <Field label="Full name"><input required value={g.fullName} onChange={(e) => setG({ ...g, fullName: e.target.value })} /></Field>
         <Field label="Phone"><input value={g.phone} onChange={(e) => setG({ ...g, phone: e.target.value })} /></Field>
         <Field label="Email"><input type="email" value={g.email} onChange={(e) => setG({ ...g, email: e.target.value })} /></Field>
-        <Field label="Password (fill in to give them an app login)">
-          <input type="password" minLength={6} value={g.password} onChange={(e) => setG({ ...g, password: e.target.value })} />
-        </Field>
+        <PasswordField label="Password (fill in to give them an app login)" minLength={6} value={g.password} onChange={(e) => setG({ ...g, password: e.target.value })} />
         <Field label="Relationship"><Relation value={g.relationship} onChange={(v) => setG({ ...g, relationship: v })} /></Field>
         <label className="check"><input type="checkbox" checked={g.canPickup} onChange={(e) => setG({ ...g, canPickup: e.target.checked })} />Can pick up</label>
         <label className="check"><input type="checkbox" checked={g.isPrimary} onChange={(e) => setG({ ...g, isPrimary: e.target.checked })} />Primary contact</label>
         <div className="full"><button className="btn">Add guardian</button></div>
       </form>
+      {child.guardians.map((guardian) => editing?.guardianId === guardian.guardianId && (
+        <form className="grid" key={`edit-${guardian.guardianId}`} onSubmit={async (e) => {
+          e.preventDefault()
+          if (await run(() => api(`/guardians/${guardian.guardianId}`, { method: 'PUT', body: editing }))) { setEditing(null); reload(); reloadGuardians() }
+        }}>
+          <h3 className="full">Edit guardian</h3>
+          <Field label="Full name"><input required value={editing.fullName} onChange={(e) => setEditing({ ...editing, fullName: e.target.value })} /></Field>
+          <Field label="Phone"><input value={editing.phone || ''} onChange={(e) => setEditing({ ...editing, phone: e.target.value })} /></Field>
+          <Field label="Email"><input type="email" value={editing.email || ''} onChange={(e) => setEditing({ ...editing, email: e.target.value })} /></Field>
+          <Field label="Relationship"><Relation value={editing.relationship} onChange={(v) => setEditing({ ...editing, relationship: v })} /></Field>
+          <label className="check"><input type="checkbox" checked={editing.canPickup} onChange={(e) => setEditing({ ...editing, canPickup: e.target.checked })} />Can pick up</label>
+          <label className="check"><input type="checkbox" checked={editing.isPrimary} onChange={(e) => setEditing({ ...editing, isPrimary: e.target.checked })} />Primary contact</label>
+          <div className="actions"><button className="btn">Save guardian</button><button type="button" className="btn ghost" onClick={() => setEditing(null)}>Cancel</button></div>
+        </form>
+      ))}
     </div>
   )
 }
@@ -76,11 +96,31 @@ function GuardianPanel({ child, guardians, reload, reloadGuardians }) {
 export default function Children() {
   const { user } = useAuth()
   const isAdmin = user.role === 'admin'
-  const [children, reload, loadErr] = useLoad(() => api('/children'))
+  const [stats, , statsErr] = useLoad(() => api('/dashboard'))
+  const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const pageSize = 10
+  const [classroomId, setClassroomId] = useState('')
+  const [staffId, setStaffId] = useState('')
+  const [active, setActive] = useState('')
+  const [childrenResult, reload, loadErr] = useLoad(() => {
+    const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) })
+    if (search) params.set('search', search)
+    if (classroomId) params.set('classroomId', classroomId)
+    if (staffId) params.set('staffId', staffId)
+    if (active) params.set('active', active)
+    return api(`/children?${params}`)
+  }, [search, classroomId, staffId, active, page])
+  const children = childrenResult?.items ?? childrenResult
+  const total = childrenResult?.total ?? children?.length ?? 0
   const [rooms] = useLoad(() => api('/classrooms'))
+  const [staff] = useLoad(() => (isAdmin ? api('/staff') : Promise.resolve([])))
   const [guardians, reloadGuardians] = useLoad(() => (isAdmin ? api('/guardians') : Promise.resolve([])))
   const [f, setF] = useState(blank)
   const [open, setOpen] = useState(null)
+  const [edit, setEdit] = useState(null)
+  const [showEnrollment, setShowEnrollment] = useState(false)
+  const [details, setDetails] = useState(null)
   const [run, err] = useAction()
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value })
 
@@ -98,38 +138,77 @@ export default function Children() {
               allergies: c.allergies, medicalNotes: c.medicalNotes, isActive: !c.isActive },
     })).then(reload)
   const unlink = (c, gid) => run(() => api(`/children/${c.id}/guardians/${gid}`, { method: 'DELETE' })).then(reload)
-
+  const save = async (e) => {
+    e.preventDefault()
+    if (await run(() => api(`/children/${edit.id}`, { method: 'PUT', body: { ...edit } }))) { setEdit(null); reload() }
+  }
   return (
     <>
       <h1>Children</h1>
       <Notice>{loadErr}</Notice>
+      <Notice>{statsErr}</Notice>
+      <section className="dashboard-cards">
+        {[
+          ['Enrolled', stats?.enrolled ?? stats?.activeChildren ?? 0],
+          ['Present now', stats?.presentNow ?? stats?.checkedIn ?? 0],
+          ['Checked out today', stats?.checkedOutToday ?? 0],
+          ['Reports not shared', stats?.reportsNotSharedToday ?? 0],
+        ].map(([label, value]) => <div className="panel metric" key={label}><span>{label}</span><strong>{value}</strong></div>)}
+      </section>
       {isAdmin && (
-        <section className="panel">
-          <h2>Enroll a child</h2>
-          {rooms && rooms.length === 0 ? (
-            <Empty>Add a classroom first (Classrooms page), then enroll children.</Empty>
-          ) : (
-            <form className="grid" onSubmit={add}>
-              <Field label="First name"><input required value={f.firstName} onChange={set('firstName')} /></Field>
-              <Field label="Last name"><input required value={f.lastName} onChange={set('lastName')} /></Field>
-              <Field label="Date of birth"><input type="date" required value={f.dateOfBirth} onChange={set('dateOfBirth')} /></Field>
-              <Field label="Classroom">
-                <select required value={f.classroomId} onChange={set('classroomId')}>
-                  <option value="">Choose…</option>
-                  {rooms?.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-                </select>
-              </Field>
-              <Field label="Allergies"><input value={f.allergies} onChange={set('allergies')} /></Field>
-              <Field label="Medical notes"><input value={f.medicalNotes} onChange={set('medicalNotes')} /></Field>
-              <div className="full"><button className="btn">Enroll child</button></div>
-            </form>
-          )}
-          <Notice>{err}</Notice>
-        </section>
+        <>
+          <button className="btn" onClick={() => setShowEnrollment(!showEnrollment)}>
+            {showEnrollment ? 'Close enrollment form' : 'Enroll child'}
+          </button>
+          {showEnrollment && <section className="panel">
+            <h2>Enroll a child</h2>
+            {rooms && rooms.length === 0 ? (
+              <Empty>Add a classroom first (Classrooms page), then enroll children.</Empty>
+            ) : (
+              <form className="grid" onSubmit={add}>
+                <Field label="First name"><input required value={f.firstName} onChange={set('firstName')} /></Field>
+                <Field label="Last name"><input required value={f.lastName} onChange={set('lastName')} /></Field>
+                <Field label="Date of birth"><input type="date" required value={f.dateOfBirth} onChange={set('dateOfBirth')} /></Field>
+                <Field label="Classroom">
+                  <select required value={f.classroomId} onChange={set('classroomId')}>
+                    <option value="">Choose…</option>
+                    {rooms?.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+                  </select>
+                </Field>
+                <Field label="Allergies"><input value={f.allergies} onChange={set('allergies')} /></Field>
+                <Field label="Medical notes"><input value={f.medicalNotes} onChange={set('medicalNotes')} /></Field>
+                <div className="full"><button className="btn">Enroll child</button></div>
+              </form>
+            )}
+            <Notice>{err}</Notice>
+          </section>}
+        </>
       )}
 
       <section className="panel">
         <h2>{isAdmin ? 'All children' : 'Children in your classrooms'}</h2>
+        <div className="toolbar">
+          <SearchBox value={search} onChange={(v) => { setSearch(v); setPage(1) }} placeholder="Name or child" />
+          <Field label="Classroom">
+            <select value={classroomId} onChange={(e) => { setClassroomId(e.target.value); setPage(1) }}>
+              <option value="">All classrooms</option>
+              {rooms?.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+            </select>
+          </Field>
+          {isAdmin && <Field label="Staff">
+            <select value={staffId} onChange={(e) => { setStaffId(e.target.value); setPage(1) }}>
+              <option value="">All staff</option>
+              {(staff?.items ?? staff)?.map((s) => <option key={s.id} value={s.id}>{s.fullName}</option>)}
+            </select>
+          </Field>}
+          <Field label="Status">
+            <select value={active} onChange={(e) => { setActive(e.target.value); setPage(1) }}>
+              <option value="">All children</option>
+              <option value="true">Active only</option>
+              <option value="false">Inactive only</option>
+            </select>
+          </Field>
+        </div>
         {!children ? null : children.length === 0 ? (
           <Empty>{isAdmin ? 'No children enrolled yet.' : 'No children in your classrooms yet. Ask your admin to assign you a classroom.'}</Empty>
         ) : (
@@ -139,11 +218,14 @@ export default function Children() {
                 <div className="grow">
                   <strong>{c.firstName} {c.lastName}</strong> {!c.isActive && <span className="tag off">Inactive</span>}
                   <div className="muted">{age(c.dateOfBirth)} · {c.classroom}</div>
-                  {c.allergies && <span className="tag warn">Allergies: {c.allergies}</span>}
-                  {c.medicalNotes && <div className="muted">Medical: {c.medicalNotes}</div>}
+                  {c.staff?.length > 0 && <div className="muted">Staff: {c.staff.map((s) => s.name).filter(Boolean).join(', ')}</div>}
                 </div>
+                <button className="btn ghost" onClick={() => setDetails(details === c.id ? null : c.id)}>
+                  {details === c.id ? 'Hide details' : 'View details'}
+                </button>
                 {isAdmin && (
                   <div className="actions">
+                    <button className="btn ghost" onClick={() => setEdit({ id: c.id, firstName: c.firstName, lastName: c.lastName, dateOfBirth: c.dateOfBirth?.slice(0, 10), classroomId: c.classroomId, allergies: c.allergies || '', medicalNotes: c.medicalNotes || '', isActive: c.isActive })}>Edit</button>
                     <button className="btn ghost" onClick={() => setOpen(open === c.id ? null : c.id)}>
                       {open === c.id ? 'Close' : 'Manage guardians'}
                     </button>
@@ -151,22 +233,39 @@ export default function Children() {
                   </div>
                 )}
               </div>
-              <ul className="plain">
+              {details === c.id && <div className="subpanel">
+                {c.allergies && <div><span className="tag warn">Allergies: {c.allergies}</span></div>}
+                {c.medicalNotes && <div className="muted">Medical notes: {c.medicalNotes}</div>}
+                {!c.allergies && !c.medicalNotes && <div className="muted">No medical or allergy notes.</div>}
+                <strong>Guardians</strong>
+                <ul className="plain">
                 {c.guardians.length === 0 && <li className="muted">No guardians linked yet.</li>}
                 {c.guardians.map((g) => (
                   <li key={g.guardianId}>
                     {g.fullName} ({g.relationship}){g.isPrimary && ' · primary'}{!g.canPickup && ' · no pickup'}
                     {g.phone && ` · ${g.phone}`}
-                    {isAdmin && <button className="link" onClick={() => unlink(c, g.guardianId)}>Remove</button>}
+                    {isAdmin && <><button className="link" onClick={() => setOpen(c.id)}>Edit</button><button className="link" onClick={() => unlink(c, g.guardianId)}>Remove</button></>}
                   </li>
                 ))}
-              </ul>
+                </ul>
+              </div>}
               {isAdmin && open === c.id && (
                 <GuardianPanel child={c} guardians={guardians} reload={reload} reloadGuardians={reloadGuardians} />
               )}
+              {edit?.id === c.id && <form className="subpanel grid" onSubmit={save}>
+                <h3 className="full">Edit child</h3>
+                <Field label="First name"><input required value={edit.firstName} onChange={(e) => setEdit({ ...edit, firstName: e.target.value })} /></Field>
+                <Field label="Last name"><input required value={edit.lastName} onChange={(e) => setEdit({ ...edit, lastName: e.target.value })} /></Field>
+                <Field label="Date of birth"><input required type="date" value={edit.dateOfBirth} onChange={(e) => setEdit({ ...edit, dateOfBirth: e.target.value })} /></Field>
+                <Field label="Classroom"><select required value={edit.classroomId} onChange={(e) => setEdit({ ...edit, classroomId: e.target.value })}>{rooms?.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}</select></Field>
+                <Field label="Allergies"><input value={edit.allergies} onChange={(e) => setEdit({ ...edit, allergies: e.target.value })} /></Field>
+                <Field label="Medical notes"><input value={edit.medicalNotes} onChange={(e) => setEdit({ ...edit, medicalNotes: e.target.value })} /></Field>
+                <div className="actions"><button className="btn">Save child</button><button type="button" className="btn ghost" onClick={() => setEdit(null)}>Cancel</button></div>
+              </form>}
             </div>
           ))
         )}
+        <Pagination page={page} pageSize={pageSize} total={total} onPageChange={setPage} />
       </section>
     </>
   )

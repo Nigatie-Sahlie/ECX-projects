@@ -12,6 +12,7 @@ public class AppDb(DbContextOptions<AppDb> options, IHttpContextAccessor http) :
 
     public DbSet<Center> Centers => Set<Center>();
     public DbSet<User> Users => Set<User>();
+    public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
     public DbSet<StaffProfile> StaffProfiles => Set<StaffProfile>();
     public DbSet<Classroom> Classrooms => Set<Classroom>();
     public DbSet<StaffClassroom> StaffClassrooms => Set<StaffClassroom>();
@@ -32,6 +33,8 @@ public class AppDb(DbContextOptions<AppDb> options, IHttpContextAccessor http) :
 
         // constraints + indexes
         b.Entity<User>().HasIndex(u => u.Email).IsUnique();
+        b.Entity<PasswordResetToken>().HasIndex(x => x.TokenHash).IsUnique();
+        b.Entity<PasswordResetToken>().HasOne<User>().WithMany().HasForeignKey(x => x.UserId);
         b.Entity<User>().ToTable(t => t.HasCheckConstraint("ck_users_center",
             "\"Role\" = 'super_admin' OR \"CenterId\" IS NOT NULL"));
         b.Entity<DailyReport>().HasIndex(x => new { x.ChildId, x.ReportDate }).IsUnique();

@@ -9,6 +9,9 @@ import Children from './pages/Children.jsx'
 import Attendance from './pages/Attendance.jsx'
 import Reports from './pages/Reports.jsx'
 import Announcements from './pages/Announcements.jsx'
+import ChangePassword from './pages/ChangePassword.jsx'
+import ForgotPassword from './pages/ForgotPassword.jsx'
+import ResetPassword from './pages/ResetPassword.jsx'
 
 const AuthCtx = createContext(null)
 export const useAuth = () => useContext(AuthCtx)
@@ -43,7 +46,10 @@ function Layout() {
         <div className="me">
           <strong>{user.fullName}</strong>
           <span>{ROLE_LABEL[user.role]}</span>
-          <button className="btn ghost" onClick={logout}>Sign out</button>
+          <div className="account-actions">
+            <NavLink to="/change-password" className="account-link">Change password</NavLink>
+            <button className="btn ghost" onClick={logout}>Sign out</button>
+          </div>
         </div>
       </aside>
       <main className="main">
@@ -73,6 +79,8 @@ export default function App() {
     <AuthCtx.Provider value={{ user, login, logout }}>
       <Routes>
         <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
+        <Route path="/forgot-password" element={user ? <Navigate to="/" replace /> : <ForgotPassword />} />
+        <Route path="/reset-password" element={user ? <Navigate to="/" replace /> : <ResetPassword />} />
         <Route element={user ? <Layout /> : <Navigate to="/login" replace />}>
           <Route index element={<Navigate to={first ? first[0] : '/login'} replace />} />
           {PAGES.map(([path, , roles, Page]) =>

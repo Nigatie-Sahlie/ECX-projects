@@ -27,6 +27,8 @@ function Entries({ entries, onDelete }) {
 
 // ---- teachers and admins ----
 function Write() {
+  const { user } = useAuth()
+  const canWrite = user.role === 'staff'
   const [children] = useLoad(() => api('/children'))
   const [childId, setChildId] = useState('')
   const [date, setDate] = useState(today())
@@ -75,7 +77,7 @@ function Write() {
         <>
           <section className="panel">
             <h2>Add to the day</h2>
-            <form className="grid" onSubmit={addEntry}>
+            {canWrite && <form className="grid" onSubmit={addEntry}>
               <Field label="What happened">
                 <select value={entry.entryType} onChange={(e) => setEntry({ ...entry, entryType: e.target.value })}>
                   {TYPES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
@@ -84,15 +86,15 @@ function Write() {
               <Field label="Time"><input type="time" required value={entry.time} onChange={(e) => setEntry({ ...entry, time: e.target.value })} /></Field>
               <Field label="Details"><input required placeholder="e.g. Ate rice and lentils, finished half" value={entry.details} onChange={(e) => setEntry({ ...entry, details: e.target.value })} /></Field>
               <div className="full"><button className="btn">Add entry</button></div>
-            </form>
+            </form>}
           </section>
 
           <section className="panel">
             <h2>
               {fmtDate(date)} {report && (report.publishedAt ? <span className="tag ok">Shared with parents</span> : <span className="tag warn">Draft</span>)}
             </h2>
-            <Entries entries={report?.entries} onDelete={removeEntry} />
-            {report && (
+            <Entries entries={report?.entries} onDelete={canWrite ? removeEntry : undefined} />
+            {report && canWrite && (
               <>
                 <Field label="Summary for parents">
                   <textarea rows={3} value={noteValue} onChange={(e) => setNote(e.target.value)} />

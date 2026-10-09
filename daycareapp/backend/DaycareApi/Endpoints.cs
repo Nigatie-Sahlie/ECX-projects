@@ -39,28 +39,57 @@ public static class Api
         var api = app.MapGroup("/api");
         var any = api.MapGroup("").RequireAuthorization();
         var ops = api.MapGroup("").RequireAuthorization(p => p.RequireRole(Roles.Admin, Roles.Staff));
+        var staffOps = api.MapGroup("").RequireAuthorization(p => p.RequireRole(Roles.Staff));
         var adm = api.MapGroup("").RequireAuthorization(p => p.RequireRole(Roles.Admin));
         var sup = api.MapGroup("/centers").RequireAuthorization(p => p.RequireRole(Roles.SuperAdmin));
-
-        // ---------- auth ----------
-        api.MapPost("/auth/login", async (LoginReq r, AppDb db, TokenService ts) =>
-        {
-            var email = (r.Email ?? "").Trim().ToLower();
-            var u = await db.Users.FirstOrDefaultAsync(x => x.Email == email);
-            if (u is null || !u.IsActive || !BCrypt.Net.BCrypt.Verify(r.Password ?? "", u.PasswordHash))
-                return Results.Unauthorized();
-            if (u.CenterId is Guid cid && !await db.Centers.AnyAsync(c => c.Id == cid && c.IsActive))
-                return Results.Json(new { error = "This daycare account is disabled" }, statusCode: 403);
-            return Results.Ok(new { token = ts.Create(u), user = new { u.Id, u.FullName, u.Role, u.CenterId } });
-        });
 
         // ---------- super admin: daycares ----------
         sup.MapGet("", async (AppDb db) =>
         {
             var counts = await db.Children.IgnoreQueryFilters().GroupBy(c => c.CenterId)
                 .Select(g => new { g.Key, N = g.Count() }).ToDictionaryAsync(x => x.Key, x => x.N);
-            var centers = await db.Centers.OrderBy(c => c.Name).ToListAsync();
-            return centers.Select(c => new { c.Id, c.Name, c.Address, c.Phone, c.IsActive, Children = counts.GetValueOrDefault(c.Id) });
+            var centers = await db.Centers.OrderBy(c => c.Name).Select(c => new
+            {
+                c.Id,
+                c.Name,
+                c.Address,
+                c.Phone,
+                c.IsActive,
+                Children = counts.GetValueOrDefault(c.Id),
+                Admins = db.Users.Where(u => u.CenterId == c.Id && u.Role == Roles.Admin)
+                    .OrderBy(u => u.FullName)
+                    .Select(u => new { u.Id, u.FullName, u.Email, u.IsActive })
+                    .ToList(),
+            }).ToListAsync();
+            return centers;
+        });
+
+        sup.MapGet("/admin-users", async (AppDb db) =>
+            await db.Users.IgnoreQueryFilters().Where(u => u.Role == Roles.Admin)
+                .OrderBy(u => u.FullName)
+                .Select(u => new { u.Id, u.FullName, u.Email, u.CenterId, u.IsActive })
+                .ToListAsync());
+
+        sup.MapPut("/admin-users/{id:guid}", async (Guid id, AdminUserUpdate r, AppDb db) =>
+        {
+            var admin = await db.Users.IgnoreQueryFilters()
+                .FirstOrDefaultAsync(u => u.Id == id && u.Role == Roles.Admin);
+            if (admin is null) return Results.NotFound();
+            if (string.IsNullOrWhiteSpace(r.FullName) || string.IsNullOrWhiteSpace(r.Email))
+                return Bad("Admin name and email are required");
+            var email = r.Email.Trim().ToLowerInvariant();
+            if (await db.Users.IgnoreQueryFilters().AnyAsync(u => u.Id != id && u.Email == email))
+                return Conflict("Email is already used");
+            if (r.CenterId is not Guid centerId || !await db.Centers.AnyAsync(c => c.Id == centerId))
+                return Bad("Choose a valid daycare");
+
+            admin.FullName = r.FullName.Trim();
+            admin.Email = email;
+            admin.Phone = r.Phone?.Trim();
+            admin.CenterId = r.CenterId;
+            admin.IsActive = r.IsActive;
+            await db.SaveChangesAsync();
+            return Results.NoContent();
         });
 
         sup.MapPost("", async (NewCenter r, AppDb db) =>
@@ -77,6 +106,24 @@ public static class Api
             return Results.Ok(new { c.Id });
         });
 
+        sup.MapPut("/{id:guid}", async (Guid id, CenterReq r, AppDb db) =>
+        {
+            var center = await db.Centers.FindAsync(id);
+            if (center is null) return Results.NotFound();
+            if (string.IsNullOrWhiteSpace(r.Name)) return Bad("Daycare name is required");
+            center.Name = r.Name.Trim();
+            center.Address = r.Address?.Trim();
+            center.Phone = r.Phone?.Trim();
+            if (r.AdminId is Guid adminId)
+            {
+                var admin = await db.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.Id == adminId && u.Role == Roles.Admin);
+                if (admin is null) return Bad("Choose a valid administrator");
+                admin.CenterId = id;
+            }
+            await db.SaveChangesAsync();
+            return Results.Ok(new { center.Id, center.Name, center.Address, center.Phone, center.IsActive });
+        });
+
         sup.MapPut("/{id:guid}/active", async (Guid id, ActiveReq r, AppDb db) =>
         {
             var c = await db.Centers.FindAsync(id);
@@ -86,17 +133,48 @@ public static class Api
             return Results.NoContent();
         });
 
+        // Super admins manage the administrators of each centre.
+        sup.MapGet("/{id:guid}/admins", async (Guid id, AppDb db) =>
+            await db.Users.Where(u => u.CenterId == id && u.Role == Roles.Admin)
+                .OrderBy(u => u.FullName)
+                .Select(u => new { u.Id, u.FullName, u.Email, u.Phone, u.IsActive }).ToListAsync());
+
+        sup.MapPut("/{id:guid}/admins/{adminId:guid}", async (Guid id, Guid adminId, AdminUpdate r, AppDb db) =>
+        {
+            var admin = await db.Users.FirstOrDefaultAsync(x => x.Id == adminId && x.CenterId == id && x.Role == Roles.Admin);
+            if (admin is null) return Results.NotFound();
+            if (string.IsNullOrWhiteSpace(r.FullName) || string.IsNullOrWhiteSpace(r.Email))
+                return Bad("Admin name and email are required");
+            var email = r.Email.Trim().ToLowerInvariant();
+            if (await db.Users.AnyAsync(x => x.Id != adminId && x.Email == email)) return Conflict("Email is already used");
+            admin.FullName = r.FullName.Trim();
+            admin.Email = email;
+            admin.Phone = r.Phone?.Trim();
+            admin.IsActive = r.IsActive;
+            await db.SaveChangesAsync();
+            return Results.NoContent();
+        });
+
         // ---------- admin: staff ----------
-        adm.MapGet("/staff", async (AppDb db, ClaimsPrincipal p) =>
+        adm.MapGet("/staff", async (AppDb db, ClaimsPrincipal p, string? search, int? page, int? pageSize) =>
         {
             var cid = p.Cid();
-            return await db.Users.Where(u => u.CenterId == cid && u.Role == Roles.Staff).OrderBy(u => u.FullName)
+            var q = db.Users.Where(u => u.CenterId == cid && u.Role == Roles.Staff);
+            if (!string.IsNullOrWhiteSpace(search))
+                q = q.Where(u => u.FullName.ToLower().Contains(search.ToLower()) || u.Email.ToLower().Contains(search.ToLower()));
+            var total = await q.CountAsync();
+            var paged = page is not null || pageSize is not null;
+            var pno = Math.Max(page ?? 1, 1); var size = Math.Clamp(pageSize ?? 25, 1, 100);
+            var rows = q.OrderBy(u => u.FullName);
+            if (paged) rows = rows.Skip((pno - 1) * size).Take(size).OrderBy(u => u.FullName);
+            var items = await rows
                 .Select(u => new
                 {
                     u.Id, u.FullName, u.Email, u.Phone, u.IsActive,
                     JobTitle = db.StaffProfiles.Where(s => s.UserId == u.Id).Select(s => s.JobTitle).FirstOrDefault(),
                     ClassroomIds = db.StaffClassrooms.Where(s => s.UserId == u.Id).Select(s => s.ClassroomId).ToList(),
                 }).ToListAsync();
+            return paged ? Results.Ok(new { items, total, page = pno, pageSize = size }) : Results.Ok(items);
         });
 
         adm.MapPost("/staff", async (NewStaff r, AppDb db, ClaimsPrincipal p) =>
@@ -120,7 +198,27 @@ public static class Api
             var cid = p.Cid();
             var u = await db.Users.FirstOrDefaultAsync(x => x.Id == id && x.CenterId == cid && x.Role == Roles.Staff);
             if (u is null) return Results.NotFound();
+            if (string.IsNullOrWhiteSpace(r.FullName) || string.IsNullOrWhiteSpace(r.Email))
+                return Bad("Name and email are required");
+            var email = r.Email.Trim().ToLowerInvariant();
+            if (await db.Users.AnyAsync(x => x.Id != id && x.Email == email))
+                return Conflict("Email is already used");
+            u.FullName = r.FullName.Trim();
+            u.Email = email;
+            u.Phone = r.Phone?.Trim();
             u.IsActive = r.IsActive;
+            if (!string.IsNullOrWhiteSpace(r.Password))
+            {
+                if (r.Password.Length < 6) return Bad("Password must be at least 6 characters");
+                u.PasswordHash = Hash(r.Password);
+            }
+            var profile = await db.StaffProfiles.FirstOrDefaultAsync(s => s.UserId == id);
+            if (profile is null)
+            {
+                profile = new StaffProfile { UserId = id };
+                db.StaffProfiles.Add(profile);
+            }
+            profile.JobTitle = r.JobTitle?.Trim();
             var ids = r.ClassroomIds ?? new();
             var valid = await db.Classrooms.Where(c => ids.Contains(c.Id)).Select(c => c.Id).ToListAsync();
             var old = await db.StaffClassrooms.Where(s => s.UserId == id).ToListAsync();
@@ -152,23 +250,55 @@ public static class Api
             return Results.Ok(new { c.Id });
         });
 
+        adm.MapPut("/classrooms/{id:guid}", async (Guid id, ClassroomReq r, AppDb db, ClaimsPrincipal p) =>
+        {
+            var c = await db.Classrooms.FirstOrDefaultAsync(x => x.Id == id && x.CenterId == p.Cid());
+            if (c is null) return Results.NotFound();
+            if (string.IsNullOrWhiteSpace(r.Name)) return Bad("Classroom name is required");
+            c.Name = r.Name.Trim();
+            c.AgeGroup = r.AgeGroup;
+            c.Capacity = r.Capacity;
+            await db.SaveChangesAsync();
+            return Results.NoContent();
+        });
+
         // ---------- children + guardians ----------
-        any.MapGet("/children", async (AppDb db, ClaimsPrincipal p) =>
+        any.MapGet("/children", async (AppDb db, ClaimsPrincipal p, string? search, Guid? classroomId, Guid? staffId, bool? active, int? page, int? pageSize) =>
         {
             var q = Visible(db, p).OrderBy(c => c.FirstName);
+            if (!string.IsNullOrWhiteSpace(search))
+                q = q.Where(c => (c.FirstName + " " + c.LastName).ToLower().Contains(search.ToLower())).OrderBy(c => c.FirstName);
+            if (classroomId is not null)
+                q = q.Where(c => c.ClassroomId == classroomId).OrderBy(c => c.FirstName);
+            if (staffId is not null)
+                q = q.Where(c => db.StaffClassrooms.Any(s => s.UserId == staffId && s.ClassroomId == c.ClassroomId))
+                    .OrderBy(c => c.FirstName);
+            if (active is not null)
+                q = q.Where(c => c.IsActive == active).OrderBy(c => c.FirstName);
+            var paged = page is not null || pageSize is not null;
+            var pno = Math.Max(page ?? 1, 1); var size = Math.Clamp(pageSize ?? 25, 1, 100);
+            var total = await q.CountAsync();
+            if (paged) q = q.Skip((pno - 1) * size).Take(size).OrderBy(c => c.FirstName);
             if (p.RoleName() == Roles.Parent)
-                return Results.Ok(await q.Select(c => new
+            {
+                var items = await q.Select(c => new
                 {
                     c.Id, c.FirstName, c.LastName, c.DateOfBirth, c.ClassroomId, Classroom = c.Classroom.Name,
                     c.Allergies, c.MedicalNotes, c.IsActive,
-                }).ToListAsync());
-            return Results.Ok(await q.Select(c => new
+                }).ToListAsync();
+                return paged ? Results.Ok(new { items, total, page = pno, pageSize = size }) : Results.Ok(items);
+            }
+            var adminItems = await q.Select(c => new
             {
                 c.Id, c.FirstName, c.LastName, c.DateOfBirth, c.ClassroomId, Classroom = c.Classroom.Name,
                 c.Allergies, c.MedicalNotes, c.IsActive,
+                Staff = db.StaffClassrooms.Where(s => s.ClassroomId == c.ClassroomId)
+                    .Select(s => new { s.UserId, Name = db.Users.Where(u => u.Id == s.UserId).Select(u => u.FullName).FirstOrDefault() })
+                    .ToList(),
                 Guardians = db.ChildGuardians.Where(g => g.ChildId == c.Id)
-                    .Select(g => new { g.GuardianId, g.Guardian.FullName, g.Guardian.Phone, g.Relationship, g.IsPrimary, g.CanPickup }).ToList(),
-            }).ToListAsync());
+                .Select(g => new { g.GuardianId, g.Guardian.FullName, g.Guardian.Phone, g.Relationship, g.IsPrimary, g.CanPickup, g.CanViewReports }).ToList(),
+            }).ToListAsync();
+            return paged ? Results.Ok(new { items = adminItems, total, page = pno, pageSize = size }) : Results.Ok(adminItems);
         });
 
         adm.MapPost("/children", async (ChildReq r, AppDb db, ClaimsPrincipal p) =>
@@ -189,6 +319,7 @@ public static class Api
         {
             var c = await db.Children.FirstOrDefaultAsync(x => x.Id == id);
             if (c is null) return Results.NotFound();
+            if (string.IsNullOrWhiteSpace(r.FirstName) || string.IsNullOrWhiteSpace(r.LastName)) return Bad("First and last name are required");
             if (!await db.Classrooms.AnyAsync(x => x.Id == r.ClassroomId)) return Bad("Choose a classroom");
             c.FirstName = r.FirstName.Trim(); c.LastName = r.LastName.Trim(); c.DateOfBirth = r.DateOfBirth;
             c.ClassroomId = r.ClassroomId; c.Allergies = r.Allergies; c.MedicalNotes = r.MedicalNotes;
@@ -222,10 +353,40 @@ public static class Api
                 db.ChildGuardians.Add(new ChildGuardian
                 {
                     ChildId = childId, Guardian = g, Relationship = r.Relationship ?? "Parent",
-                    IsPrimary = r.IsPrimary, CanPickup = r.CanPickup,
+                    IsPrimary = r.IsPrimary, CanPickup = r.CanPickup, CanViewReports = r.CanViewReports,
                 });
             await db.SaveChangesAsync();
             return Results.Ok(new { g.Id });
+        });
+
+        adm.MapPut("/guardians/{id:guid}", async (Guid id, GuardianReq r, AppDb db, ClaimsPrincipal p) =>
+        {
+            var g = await db.Guardians.FirstOrDefaultAsync(x => x.Id == id && x.CenterId == p.Cid());
+            if (g is null) return Results.NotFound();
+            if (string.IsNullOrWhiteSpace(r.FullName)) return Bad("Guardian name is required");
+            var email = r.Email?.Trim().ToLower();
+            User? u = g.UserId is Guid uid ? await db.Users.FirstOrDefaultAsync(x => x.Id == uid) : null;
+            if (email is not null && await db.Users.AnyAsync(x => x.Email == email && x.Id != (g.UserId ?? Guid.Empty)))
+                return Conflict("Email is already used");
+            g.FullName = r.FullName.Trim(); g.Phone = r.Phone; g.Email = email;
+            if (u is not null)
+            {
+                u.FullName = g.FullName; u.Phone = g.Phone; u.Email = email ?? u.Email;
+                if (!string.IsNullOrWhiteSpace(r.Password))
+                {
+                    if (r.Password.Length < 6) return Bad("Password must be at least 6 characters");
+                    u.PasswordHash = Hash(r.Password);
+                }
+            }
+            else if (!string.IsNullOrWhiteSpace(r.Password))
+            {
+                if (email is null) return Bad("Email is required to create a login");
+                if (r.Password.Length < 6) return Bad("Password must be at least 6 characters");
+                u = new User { CenterId = g.CenterId, Email = email, PasswordHash = Hash(r.Password), Role = Roles.Parent, FullName = g.FullName, Phone = g.Phone };
+                db.Users.Add(u); g.UserId = u.Id;
+            }
+            await db.SaveChangesAsync();
+            return Results.NoContent();
         });
 
         adm.MapPost("/children/{id:guid}/guardians", async (Guid id, LinkReq r, AppDb db) =>
@@ -237,7 +398,7 @@ public static class Api
             db.ChildGuardians.Add(new ChildGuardian
             {
                 ChildId = id, GuardianId = r.GuardianId, Relationship = r.Relationship ?? "Parent",
-                IsPrimary = r.IsPrimary, CanPickup = r.CanPickup,
+                IsPrimary = r.IsPrimary, CanPickup = r.CanPickup, CanViewReports = r.CanViewReports,
             });
             await db.SaveChangesAsync();
             return Results.NoContent();
@@ -253,7 +414,7 @@ public static class Api
         });
 
         // ---------- attendance ----------
-        ops.MapPost("/attendance/check-in", async (CheckInReq r, AppDb db, ClaimsPrincipal p) =>
+        staffOps.MapPost("/attendance/check-in", async (CheckInReq r, AppDb db, ClaimsPrincipal p) =>
         {
             if (!await Visible(db, p).AnyAsync(c => c.Id == r.ChildId && c.IsActive)) return Results.NotFound();
             if (await db.Attendance.AnyAsync(a => a.ChildId == r.ChildId && a.CheckOutAt == null))
@@ -263,26 +424,32 @@ public static class Api
             return Results.NoContent();
         });
 
-        ops.MapPost("/attendance/{id:guid}/check-out", async (Guid id, CheckOutReq r, AppDb db, ClaimsPrincipal p) =>
+        staffOps.MapPost("/attendance/{id:guid}/check-out", async (Guid id, CheckOutReq r, AppDb db, ClaimsPrincipal p) =>
         {
             var ids = Visible(db, p).Select(c => c.Id);
             var a = await db.Attendance.FirstOrDefaultAsync(x => x.Id == id && x.CheckOutAt == null && ids.Contains(x.ChildId));
             if (a is null) return Results.NotFound();
+            var eligibleGuardians = await db.ChildGuardians.CountAsync(x => x.ChildId == a.ChildId && x.CanPickup);
+            if (eligibleGuardians > 0 && r.PickedUpByGuardianId is null)
+                return Bad("Select the parent or guardian who picked up the child");
             a.CheckOutAt = DateTime.UtcNow;
             a.CheckedOutBy = p.Uid();
-            if (r.PickedUpByGuardianId is Guid g &&
-                await db.ChildGuardians.AnyAsync(x => x.ChildId == a.ChildId && x.GuardianId == g && x.CanPickup))
-                a.PickedUpByGuardianId = g;
+            if (r.PickedUpByGuardianId is not Guid pickupGuardianId ||
+                !await db.ChildGuardians.AnyAsync(x => x.ChildId == a.ChildId && x.GuardianId == pickupGuardianId && x.CanPickup))
+                return Bad("The selected pickup person is not authorized for this child");
+            a.PickedUpByGuardianId = pickupGuardianId;
             await db.SaveChangesAsync();
             return Results.NoContent();
         });
 
         // ?date=YYYY-MM-DD -> that day (plus any visit still open); no date -> last 30 days
-        any.MapGet("/attendance", async (AppDb db, ClaimsPrincipal p, DateOnly? date, Guid? childId) =>
+        any.MapGet("/attendance", async (AppDb db, ClaimsPrincipal p, DateOnly? date, Guid? childId, string? search, int? page, int? pageSize) =>
         {
             var ids = Visible(db, p).Select(c => c.Id);
             var q = db.Attendance.Where(a => ids.Contains(a.ChildId));
             if (childId != null) q = q.Where(a => a.ChildId == childId);
+            if (!string.IsNullOrWhiteSpace(search))
+                q = q.Where(a => (a.Child.FirstName + " " + a.Child.LastName).ToLower().Contains(search.ToLower()));
             if (date is DateOnly d)
             {
                 var (start, end) = Day(d);
@@ -293,15 +460,24 @@ public static class Api
                 var since = DateTime.UtcNow.AddDays(-30);
                 q = q.Where(a => a.CheckInAt >= since);
             }
-            return await q.OrderByDescending(a => a.CheckInAt).Take(300).Select(a => new
+            var paged = page is not null || pageSize is not null;
+            var pno = Math.Max(page ?? 1, 1); var size = Math.Clamp(pageSize ?? 25, 1, 100);
+            var total = await q.CountAsync();
+            IQueryable<Attendance> rows = q.OrderByDescending(a => a.CheckInAt);
+            rows = paged ? rows.Skip((pno - 1) * size).Take(size) : rows.Take(300);
+            var items = await rows.Select(a => new
             {
                 a.Id, a.ChildId, Child = a.Child.FirstName + " " + a.Child.LastName, a.CheckInAt, a.CheckOutAt,
                 PickedUpBy = a.PickedUpByGuardian != null ? a.PickedUpByGuardian.FullName : null,
+                PickedUpByPhone = a.PickedUpByGuardian != null ? a.PickedUpByGuardian.Phone : null,
+                CheckedInBy = db.Users.Where(u => u.Id == a.CheckedInBy).Select(u => u.FullName).FirstOrDefault(),
+                CheckedOutBy = a.CheckedOutBy == null ? null : db.Users.Where(u => u.Id == a.CheckedOutBy).Select(u => u.FullName).FirstOrDefault(),
             }).ToListAsync();
+            return paged ? Results.Ok(new { items, total, page = pno, pageSize = size }) : Results.Ok(items);
         });
 
         // ---------- daily reports ----------
-        ops.MapPost("/reports/entries", async (NewEntry r, AppDb db, ClaimsPrincipal p) =>
+        staffOps.MapPost("/reports/entries", async (NewEntry r, AppDb db, ClaimsPrincipal p) =>
         {
             if (!EntryTypes.Contains(r.EntryType)) return Bad("Invalid entry type");
             if (!await Visible(db, p).AnyAsync(c => c.Id == r.ChildId)) return Results.NotFound();
@@ -320,7 +496,7 @@ public static class Api
             return Results.Ok(new { rep.Id });
         });
 
-        ops.MapDelete("/reports/entries/{id:guid}", async (Guid id, AppDb db, ClaimsPrincipal p) =>
+        staffOps.MapDelete("/reports/entries/{id:guid}", async (Guid id, AppDb db, ClaimsPrincipal p) =>
         {
             var ids = Visible(db, p).Select(c => c.Id);
             var e = await db.Entries.FirstOrDefaultAsync(x => x.Id == id && ids.Contains(x.Report.ChildId));
@@ -331,7 +507,7 @@ public static class Api
         });
 
         // save the summary note; publish = true makes the report visible to parents
-        ops.MapPut("/reports/{id:guid}", async (Guid id, ReportReq r, AppDb db, ClaimsPrincipal p) =>
+        staffOps.MapPut("/reports/{id:guid}", async (Guid id, ReportReq r, AppDb db, ClaimsPrincipal p) =>
         {
             var ids = Visible(db, p).Select(c => c.Id);
             var rep = await db.DailyReports.FirstOrDefaultAsync(x => x.Id == id && ids.Contains(x.ChildId));
@@ -346,7 +522,9 @@ public static class Api
         {
             var ids = Visible(db, p).Select(c => c.Id);
             var q = db.DailyReports.Where(r => ids.Contains(r.ChildId));
-            if (p.RoleName() == Roles.Parent) q = q.Where(r => r.PublishedAt != null);
+            if (p.RoleName() == Roles.Parent)
+                q = q.Where(r => r.PublishedAt != null &&
+                    db.ChildGuardians.Any(g => g.ChildId == r.ChildId && g.Guardian.UserId == p.Uid() && g.CanViewReports));
             if (childId != null) q = q.Where(r => r.ChildId == childId);
             if (date is DateOnly d) q = q.Where(r => r.ReportDate == d);
             return await q.OrderByDescending(r => r.ReportDate).Take(60).Select(r => new
@@ -401,19 +579,101 @@ public static class Api
             await db.SaveChangesAsync();
             return Results.NoContent();
         });
+
+        ops.MapPut("/announcements/{id:guid}", async (Guid id, AnnReq r, AppDb db, ClaimsPrincipal p) =>
+        {
+            var a = await db.Announcements.FirstOrDefaultAsync(x => x.Id == id);
+            if (a is null) return Results.NotFound();
+            if (p.RoleName() == Roles.Staff && a.AuthorId != p.Uid()) return Results.Forbid();
+            if (string.IsNullOrWhiteSpace(r.Title) || string.IsNullOrWhiteSpace(r.Body)) return Bad("Title and message are required");
+            if (r.ClassroomId is Guid room)
+            {
+                if (!await db.Classrooms.AnyAsync(c => c.Id == room)) return Results.NotFound();
+                if (p.RoleName() == Roles.Staff && !await db.StaffClassrooms.AnyAsync(s => s.UserId == p.Uid() && s.ClassroomId == room))
+                    return Results.Forbid();
+            }
+            else if (p.RoleName() == Roles.Staff) return Results.Forbid();
+            a.Title = r.Title.Trim(); a.Body = r.Body.Trim(); a.ClassroomId = r.ClassroomId;
+            await db.SaveChangesAsync();
+            return Results.NoContent();
+        });
+
+        ops.MapDelete("/announcements/{id:guid}", async (Guid id, AppDb db, ClaimsPrincipal p) =>
+        {
+            var a = await db.Announcements.FirstOrDefaultAsync(x => x.Id == id);
+            if (a is null) return Results.NotFound();
+            if (p.RoleName() == Roles.Staff &&
+                (a.AuthorId != p.Uid() ||
+                 a.ClassroomId is not Guid classroomId ||
+                 !await db.StaffClassrooms.AnyAsync(s => s.UserId == p.Uid() && s.ClassroomId == classroomId)))
+                return Results.Forbid();
+            db.Announcements.Remove(a);
+            await db.SaveChangesAsync();
+            return Results.NoContent();
+        });
+
+        any.MapGet("/dashboard", async Task<IResult> (AppDb db, ClaimsPrincipal p) =>
+        {
+            if (p.RoleName() == Roles.SuperAdmin)
+            {
+                var centers = db.Centers.AsNoTracking();
+                return Results.Ok(new
+                {
+                    Children = await db.Children.IgnoreQueryFilters().CountAsync(c => c.IsActive),
+                    Staff = await db.Users.IgnoreQueryFilters().CountAsync(u => u.Role == Roles.Staff && u.IsActive),
+                    Centers = await centers.CountAsync(),
+                    ActiveCenters = await centers.CountAsync(c => c.IsActive),
+                });
+            }
+            var children = Visible(db, p);
+            var childIds = children.Select(c => c.Id);
+            var today = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(EatHours));
+            var (dayStart, dayEnd) = Day(today);
+            var now = DateTime.UtcNow;
+            var enrolled = await children.CountAsync(c => c.IsActive);
+            var checkedIn = await db.Attendance.CountAsync(a =>
+                childIds.Contains(a.ChildId) && a.CheckInAt <= now && a.CheckOutAt == null);
+            var checkedOutToday = await db.Attendance.CountAsync(a =>
+                childIds.Contains(a.ChildId) && a.CheckOutAt >= dayStart && a.CheckOutAt < dayEnd);
+            var reportsNotSharedToday = await children
+                .Where(c => c.IsActive && !db.DailyReports.Any(r =>
+                    r.ChildId == c.Id && r.ReportDate == today && r.PublishedAt != null))
+                .CountAsync();
+            return Results.Ok(new
+            {
+                Children = enrolled,
+                ActiveChildren = enrolled,
+                Enrolled = enrolled,
+                Classrooms = p.RoleName() == Roles.Parent ? 0 : await db.Classrooms.CountAsync(),
+                Staff = p.RoleName() == Roles.Admin ? await db.Users.CountAsync(u => u.CenterId == p.Cid() && u.Role == Roles.Staff && u.IsActive) : 0,
+                CheckedIn = checkedIn,
+                PresentNow = checkedIn,
+                CheckedOutToday = checkedOutToday,
+                ReportsNotSharedToday = reportsNotSharedToday,
+                Announcements = await db.Announcements.CountAsync(),
+            });
+        });
     }
 }
 
 // ---------- request bodies ----------
 public record LoginReq(string? Email, string? Password);
+public record ForgotPasswordReq(string? Email);
+public record ResetPasswordReq(string? Token, string? NewPassword);
 public record NewCenter(string Name, string? Address, string? Phone, string AdminName, string AdminEmail, string? AdminPassword);
+public record CenterReq(string Name, string? Address, string? Phone, Guid? AdminId);
+public record AdminUpdate(string FullName, string Email, string? Phone, bool IsActive);
+public record AdminUserUpdate(string? FullName, string? Email, string? Phone, Guid? CenterId, bool IsActive);
 public record ActiveReq(bool IsActive);
+// Password is the original API property. NewPassword is accepted as an alias so
+// clients can use the same payload shape as the current password-change endpoint.
+public record ChangePasswordReq(string? CurrentPassword, string? NewPassword);
 public record NewStaff(string FullName, string Email, string? Password, string? Phone, string? JobTitle, List<Guid>? ClassroomIds);
-public record StaffUpdate(bool IsActive, List<Guid>? ClassroomIds);
+public record StaffUpdate(string? FullName, string? Email, string? Phone, string? JobTitle, string? Password, bool IsActive, List<Guid>? ClassroomIds);
 public record ClassroomReq(string Name, string? AgeGroup, int Capacity);
 public record ChildReq(string FirstName, string LastName, DateOnly DateOfBirth, Guid ClassroomId, string? Allergies, string? MedicalNotes, bool? IsActive);
-public record GuardianReq(string FullName, string? Phone, string? Email, string? Password, Guid? ChildId, string? Relationship, bool IsPrimary, bool CanPickup = true);
-public record LinkReq(Guid GuardianId, string? Relationship, bool IsPrimary, bool CanPickup = true);
+public record GuardianReq(string FullName, string? Phone, string? Email, string? Password, Guid? ChildId, string? Relationship, bool IsPrimary, bool CanPickup = true, bool CanViewReports = true);
+public record LinkReq(Guid GuardianId, string? Relationship, bool IsPrimary, bool CanPickup = true, bool CanViewReports = true);
 public record CheckInReq(Guid ChildId);
 public record CheckOutReq(Guid? PickedUpByGuardianId);
 public record NewEntry(Guid ChildId, DateOnly Date, string EntryType, string? Details, DateTime? OccurredAt);

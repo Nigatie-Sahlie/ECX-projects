@@ -2,6 +2,18 @@ bin/
 obj/
 node_modules/
 dist/
+TestResults/
+coverage/
+*.trx
+*.log
+
+# IDE and operating-system files
+.vs/
+.vscode/
+.idea/
+.DS_Store
+*.swp
+
 # Local environment files and secrets
 .env
 .env.*

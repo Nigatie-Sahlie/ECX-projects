@@ -4,10 +4,13 @@ import { useAuth } from '../App.jsx'
 import { Empty, Notice, useAction, useLoad } from '../ui.jsx'
 
 function Board() {
+  const { user } = useAuth()
+  const canWrite = user.role === 'staff'
   const [date, setDate] = useState(today())
   const [children] = useLoad(() => api('/children'))
   const [records, reload, loadErr] = useLoad(() => api(`/attendance?date=${date}`), [date])
   const [pick, setPick] = useState({})
+  const [details, setDetails] = useState(null)
   const [run, err] = useAction()
   const isToday = date === today()
 
@@ -42,10 +45,10 @@ function Board() {
                 </div>
                 <div className="status">
                   {open ? <span className="tag ok">In since {fmtTime(rec.checkInAt)}</span>
-                    : rec ? <span className="tag">Out at {fmtTime(rec.checkOutAt)}{rec.pickedUpBy ? ` · ${rec.pickedUpBy}` : ''}</span>
+                    : rec ? <><span className="tag">Out at {fmtTime(rec.checkOutAt)}{rec.pickedUpBy ? ` · ${rec.pickedUpBy}` : ''}</span><button className="link" onClick={() => setDetails(details === rec.id ? null : rec.id)}>Details</button></>
                     : <span className="tag off">Not in</span>}
                 </div>
-                {open && (
+                {open && canWrite && (
                   <div className="actions">
                     <select value={pick[c.id] || ''} onChange={(e) => setPick({ ...pick, [c.id]: e.target.value })} aria-label="Picked up by">
                       <option value="">Picked up by…</option>
@@ -54,7 +57,8 @@ function Board() {
                     <button className="btn" onClick={() => checkOut(rec)}>Check out</button>
                   </div>
                 )}
-                {!open && isToday && <button className="btn" onClick={() => checkIn(c)}>{rec ? 'Check in again' : 'Check in'}</button>}
+                {!open && isToday && canWrite && <button className="btn" onClick={() => checkIn(c)}>{rec ? 'Check in again' : 'Check in'}</button>}
+                {details === rec?.id && <div className="subpanel full"><strong>Pickup details</strong><div className="muted">Checked in: {fmtTime(rec.checkInAt)} by {rec.checkedInBy || 'unknown'}</div><div className="muted">Checked out: {fmtTime(rec.checkOutAt)} by {rec.checkedOutBy || 'unknown'}</div><div className="muted">Picked up by: {rec.pickedUpBy || 'Not recorded'}{rec.pickedUpByPhone ? ` · ${rec.pickedUpByPhone}` : ''}</div></div>}
               </div>
             )
           })}

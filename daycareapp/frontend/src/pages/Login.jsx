@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useAuth } from '../App.jsx'
-import { Field, Notice } from '../ui.jsx'
+import { Field, Notice, PasswordField } from '../ui.jsx'
 
 export default function Login() {
   const { login } = useAuth()
@@ -28,9 +28,8 @@ export default function Login() {
         <Field label="Email">
           <input type="email" required autoFocus value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} />
         </Field>
-        <Field label="Password">
-          <input type="password" required value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} />
-        </Field>
+        <PasswordField label="Password" required value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} />
+        <div className="login-links"><a href="/forgot-password">Forgot password?</a></div>
         <Notice>{err}</Notice>
         <button className="btn" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
       </form>
