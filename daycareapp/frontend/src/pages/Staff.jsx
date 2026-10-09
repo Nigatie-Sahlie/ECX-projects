@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { api } from '../api'
-import { ClassroomPicker, Empty, Field, Notice, Pagination, PasswordField, SearchBox, useAction, useLoad } from '../ui.jsx'
+import { ClassroomPicker, Empty, Field, Modal, Notice, Pagination, PasswordField, SearchBox, useAction, useLoad } from '../ui.jsx'
 
 const blank = { fullName: '', email: '', password: '', phone: '', jobTitle: '', classroomIds: [] }
 
@@ -50,9 +50,8 @@ export default function Staff() {
           ['Children', stats?.enrolled ?? stats?.activeChildren ?? 0],
         ].map(([label, value]) => <div className="panel metric" key={label}><span>{label}</span><strong>{value}</strong></div>)}
       </section>
-      <button className="btn" onClick={() => setShowAdd(!showAdd)}>{showAdd ? 'Close teacher form' : 'Add teacher'}</button>
-      {showAdd && <section className="panel">
-        <h2>Add a teacher</h2>
+      <button className="btn" onClick={() => setShowAdd(true)}>Add teacher</button>
+      {showAdd && <Modal title="Add a teacher" onClose={() => setShowAdd(false)}>
         <form className="grid" onSubmit={add}>
           <Field label="Full name"><input required value={f.fullName} onChange={set('fullName')} /></Field>
           <Field label="Email"><input type="email" required value={f.email} onChange={set('email')} /></Field>
@@ -66,7 +65,7 @@ export default function Staff() {
           <div className="full"><button className="btn">Add teacher</button></div>
         </form>
         <Notice>{err}</Notice>
-      </section>}
+      </Modal>}
 
       <section className="panel">
         <h2>Your team</h2>
@@ -82,7 +81,8 @@ export default function Staff() {
                 <strong>{s.fullName}</strong> {!s.isActive && <span className="tag off">Inactive</span>}
                 <div className="muted">{[s.jobTitle, s.email, s.phone].filter(Boolean).join(' · ')}</div>
                 {edit?.id === s.id ? (
-                  <div className="stack">
+                  <Modal title={`Edit ${s.fullName}`} onClose={() => setEdit(null)} wide>
+                    <div className="stack">
                     <div className="grid">
                       <Field label="Full name"><input required value={edit.fullName} onChange={(e) => setEdit({ ...edit, fullName: e.target.value })} /></Field>
                       <Field label="Email"><input required type="email" value={edit.email} onChange={(e) => setEdit({ ...edit, email: e.target.value })} /></Field>
@@ -100,6 +100,7 @@ export default function Staff() {
                       <button className="btn ghost" onClick={() => setEdit(null)}>Cancel</button>
                     </div>
                   </div>
+                  </Modal>
                 ) : (
                   <div className="chips">
                     {s.classroomIds.length === 0 && <span className="muted">No classrooms assigned</span>}

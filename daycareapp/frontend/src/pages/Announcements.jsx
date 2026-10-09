@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { api, fmtDate } from '../api'
 import { useAuth } from '../App.jsx'
-import { Empty, Field, Notice, useAction, useLoad } from '../ui.jsx'
+import { Empty, Field, Modal, Notice, useAction, useLoad } from '../ui.jsx'
 
 export default function Announcements() {
   const { user } = useAuth()
@@ -36,11 +36,8 @@ export default function Announcements() {
     <>
       <h1>Announcements</h1>
       <Notice>{loadErr}</Notice>
-      {canPost && (
-        <>
-          <button className="btn" onClick={() => setShowPost(!showPost)}>{showPost ? 'Close announcement form' : 'Post announcement'}</button>
-          {showPost && <section className="panel">
-          <h2>Post an announcement</h2>
+      {canPost && <button className="btn" onClick={() => setShowPost(true)}>Post announcement</button>}
+      {showPost && <Modal title="Post an announcement" onClose={() => setShowPost(false)}>
           <form className="stack" onSubmit={post}>
             <Field label="Send to">
               <select required={!isAdmin} value={f.classroomId} onChange={(e) => setF({ ...f, classroomId: e.target.value })}>
@@ -53,21 +50,21 @@ export default function Announcements() {
             <div><button className="btn">Post announcement</button></div>
           </form>
           <Notice>{err}</Notice>
-          </section>}
-        </>
-      )}
+      </Modal>}
 
       {!items ? null : items.length === 0 ? (
         <Empty>No announcements yet.</Empty>
       ) : (
         items.map((a) => (
           <section className="panel" key={a.id}>
-            {edit?.id === a.id ? <form className="stack" onSubmit={save}>
+            {edit?.id === a.id ? <Modal title={`Edit announcement: ${a.title}`} onClose={() => setEdit(null)}>
+              <form className="stack" onSubmit={save}>
               <Field label="Send to"><select required={!isAdmin} value={edit.classroomId || ''} onChange={(e) => setEdit({ ...edit, classroomId: e.target.value })}>{isAdmin && <option value="">Whole daycare</option>}{rooms?.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}</select></Field>
               <Field label="Title"><input required value={edit.title} onChange={(e) => setEdit({ ...edit, title: e.target.value })} /></Field>
               <Field label="Message"><textarea required rows={4} value={edit.body} onChange={(e) => setEdit({ ...edit, body: e.target.value })} /></Field>
               <div className="actions"><button className="btn">Save changes</button><button type="button" className="btn ghost" onClick={() => setEdit(null)}>Cancel</button></div>
-            </form> : <h2>{a.title}</h2>}
+              </form>
+            </Modal> : <h2>{a.title}</h2>}
             <div className="muted">
               {a.author} · {fmtDate(new Date(a.publishedAt).toLocaleDateString('en-CA'))} · {a.classroom ? a.classroom : 'Whole daycare'}
             </div>

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { api, age } from '../api'
 import { useAuth } from '../App.jsx'
-import { Empty, Field, Notice, Pagination, PasswordField, SearchBox, useAction, useLoad } from '../ui.jsx'
+import { Empty, Field, Modal, Notice, Pagination, PasswordField, SearchBox, useAction, useLoad } from '../ui.jsx'
 
 const blank = { firstName: '', lastName: '', dateOfBirth: '', classroomId: '', allergies: '', medicalNotes: '' }
 const RELATIONS = ['Mother', 'Father', 'Grandparent', 'Other guardian']
@@ -157,11 +157,8 @@ export default function Children() {
       </section>
       {isAdmin && (
         <>
-          <button className="btn" onClick={() => setShowEnrollment(!showEnrollment)}>
-            {showEnrollment ? 'Close enrollment form' : 'Enroll child'}
-          </button>
-          {showEnrollment && <section className="panel">
-            <h2>Enroll a child</h2>
+          <button className="btn" onClick={() => setShowEnrollment(true)}>Enroll child</button>
+          {showEnrollment && <Modal title="Enroll a child" onClose={() => setShowEnrollment(false)}>
             {rooms && rooms.length === 0 ? (
               <Empty>Add a classroom first (Classrooms page), then enroll children.</Empty>
             ) : (
@@ -181,7 +178,7 @@ export default function Children() {
               </form>
             )}
             <Notice>{err}</Notice>
-          </section>}
+          </Modal>}
         </>
       )}
 
@@ -233,7 +230,7 @@ export default function Children() {
                   </div>
                 )}
               </div>
-              {details === c.id && <div className="subpanel">
+              {details === c.id && <Modal title={`${c.firstName} ${c.lastName} details`} onClose={() => setDetails(null)}>
                 {c.allergies && <div><span className="tag warn">Allergies: {c.allergies}</span></div>}
                 {c.medicalNotes && <div className="muted">Medical notes: {c.medicalNotes}</div>}
                 {!c.allergies && !c.medicalNotes && <div className="muted">No medical or allergy notes.</div>}
@@ -248,12 +245,14 @@ export default function Children() {
                   </li>
                 ))}
                 </ul>
-              </div>}
+              </Modal>}
               {isAdmin && open === c.id && (
-                <GuardianPanel child={c} guardians={guardians} reload={reload} reloadGuardians={reloadGuardians} />
+                <Modal title={`Manage guardians for ${c.firstName} ${c.lastName}`} onClose={() => setOpen(null)} wide>
+                  <GuardianPanel child={c} guardians={guardians} reload={reload} reloadGuardians={reloadGuardians} />
+                </Modal>
               )}
-              {edit?.id === c.id && <form className="subpanel grid" onSubmit={save}>
-                <h3 className="full">Edit child</h3>
+              {edit?.id === c.id && <Modal title={`Edit ${c.firstName} ${c.lastName}`} onClose={() => setEdit(null)}>
+                <form className="grid" onSubmit={save}>
                 <Field label="First name"><input required value={edit.firstName} onChange={(e) => setEdit({ ...edit, firstName: e.target.value })} /></Field>
                 <Field label="Last name"><input required value={edit.lastName} onChange={(e) => setEdit({ ...edit, lastName: e.target.value })} /></Field>
                 <Field label="Date of birth"><input required type="date" value={edit.dateOfBirth} onChange={(e) => setEdit({ ...edit, dateOfBirth: e.target.value })} /></Field>
@@ -261,7 +260,8 @@ export default function Children() {
                 <Field label="Allergies"><input value={edit.allergies} onChange={(e) => setEdit({ ...edit, allergies: e.target.value })} /></Field>
                 <Field label="Medical notes"><input value={edit.medicalNotes} onChange={(e) => setEdit({ ...edit, medicalNotes: e.target.value })} /></Field>
                 <div className="actions"><button className="btn">Save child</button><button type="button" className="btn ghost" onClick={() => setEdit(null)}>Cancel</button></div>
-              </form>}
+                </form>
+              </Modal>}
             </div>
           ))
         )}

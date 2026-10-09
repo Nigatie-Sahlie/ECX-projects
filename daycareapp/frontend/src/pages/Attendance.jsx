@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { api, fmtDate, fmtTime, today } from '../api'
 import { useAuth } from '../App.jsx'
-import { Empty, Notice, useAction, useLoad } from '../ui.jsx'
+import { Empty, Modal, Notice, useAction, useLoad } from '../ui.jsx'
 
 function Board() {
   const { user } = useAuth()
@@ -58,7 +58,7 @@ function Board() {
                   </div>
                 )}
                 {!open && isToday && canWrite && <button className="btn" onClick={() => checkIn(c)}>{rec ? 'Check in again' : 'Check in'}</button>}
-                {details === rec?.id && <div className="subpanel full"><strong>Pickup details</strong><div className="muted">Checked in: {fmtTime(rec.checkInAt)} by {rec.checkedInBy || 'unknown'}</div><div className="muted">Checked out: {fmtTime(rec.checkOutAt)} by {rec.checkedOutBy || 'unknown'}</div><div className="muted">Picked up by: {rec.pickedUpBy || 'Not recorded'}{rec.pickedUpByPhone ? ` · ${rec.pickedUpByPhone}` : ''}</div></div>}
+                {details === rec?.id && <Modal title={`Attendance details: ${c.firstName} ${c.lastName}`} onClose={() => setDetails(null)}><strong>Pickup details</strong><div className="muted">Checked in: {fmtTime(rec.checkInAt)} by {rec.checkedInBy || 'unknown'}</div><div className="muted">Checked out: {fmtTime(rec.checkOutAt)} by {rec.checkedOutBy || 'unknown'}</div><div className="muted">Picked up by: {rec.pickedUpBy || 'Not recorded'}{rec.pickedUpByPhone ? ` · ${rec.pickedUpByPhone}` : ''}</div></Modal>}
               </div>
             )
           })}

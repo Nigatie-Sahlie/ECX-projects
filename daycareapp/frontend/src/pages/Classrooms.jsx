@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { api } from '../api'
-import { Empty, Field, Notice, useAction, useLoad } from '../ui.jsx'
+import { Empty, Field, Modal, Notice, useAction, useLoad } from '../ui.jsx'
 
 const blank = { name: '', ageGroup: '', capacity: 10 }
 
@@ -32,9 +32,8 @@ export default function Classrooms() {
     <>
       <h1>Classrooms</h1>
       <Notice>{loadErr}</Notice>
-      <button className="btn" onClick={() => setShowAdd(!showAdd)}>{showAdd ? 'Close classroom form' : 'Add classroom'}</button>
-      {showAdd && <section className="panel">
-        <h2>Add a classroom</h2>
+      <button className="btn" onClick={() => setShowAdd(true)}>Add classroom</button>
+      {showAdd && <Modal title="Add a classroom" onClose={() => setShowAdd(false)}>
         <form className="grid" onSubmit={add}>
           <Field label="Name"><input required value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></Field>
           <Field label="Age group"><input placeholder="e.g. 2-3 years" value={f.ageGroup} onChange={(e) => setF({ ...f, ageGroup: e.target.value })} /></Field>
@@ -42,7 +41,7 @@ export default function Classrooms() {
           <div className="full"><button className="btn">Add classroom</button></div>
         </form>
         <Notice>{err}</Notice>
-      </section>}
+      </Modal>}
       <section className="panel">
         <h2>All classrooms</h2>
         {!rooms ? null : rooms.length === 0 ? (
@@ -52,12 +51,14 @@ export default function Classrooms() {
             <div className="row" key={r.id}>
               <div className="grow">
                 {edit?.id === r.id ? (
-                  <form className="grid" onSubmit={save}>
+                  <Modal title={`Edit ${r.name}`} onClose={() => setEdit(null)}>
+                    <form className="grid" onSubmit={save}>
                     <Field label="Name"><input required value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} /></Field>
                     <Field label="Age group"><input value={edit.ageGroup || ''} onChange={(e) => setEdit({ ...edit, ageGroup: e.target.value })} /></Field>
                     <Field label="Capacity"><input required type="number" min="1" value={edit.capacity} onChange={(e) => setEdit({ ...edit, capacity: e.target.value })} /></Field>
                     <div className="actions"><button className="btn">Save</button><button type="button" className="btn ghost" onClick={() => setEdit(null)}>Cancel</button></div>
-                  </form>
+                    </form>
+                  </Modal>
                 ) : <><strong>{r.name}</strong><div className="muted">{r.ageGroup} · up to {r.capacity} children</div></>}
               </div>
               {edit?.id !== r.id && <button className="btn ghost" onClick={() => setEdit({ id: r.id, name: r.name, ageGroup: r.ageGroup, capacity: r.capacity })}>Edit</button>}

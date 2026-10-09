@@ -15,6 +15,30 @@ export const Notice = ({ children, kind = 'error' }) =>
 
 export const Empty = ({ children }) => <p className="empty">{children}</p>
 
+export function Modal({ title, onClose, children, wide = false }) {
+  useEffect(() => {
+    const closeOnEscape = (event) => {
+      if (event.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', closeOnEscape)
+    return () => document.removeEventListener('keydown', closeOnEscape)
+  }, [onClose])
+
+  return (
+    <div className="modal-backdrop" role="presentation" onMouseDown={(event) => {
+      if (event.target === event.currentTarget) onClose()
+    }}>
+      <section className={`modal ${wide ? 'modal-wide' : ''}`} role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <div className="modal-header">
+          <h2 id="modal-title">{title}</h2>
+          <button type="button" className="modal-close" onClick={onClose} aria-label="Close dialog" title="Close">×</button>
+        </div>
+        <div className="modal-body">{children}</div>
+      </section>
+    </div>
+  )
+}
+
 export function SearchBox({ value, onChange, placeholder = 'Search…' }) {
   return <Field label="Search"><input type="search" value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} /></Field>
 }

@@ -13,7 +13,9 @@ public static class AuthEndpoints
         {
             var email = (r.Email ?? "").Trim().ToLowerInvariant();
             var user = await db.Users.FirstOrDefaultAsync(x => x.Email == email);
-            if (user is null || !user.IsActive || !BCrypt.Net.BCrypt.Verify(r.Password ?? "", user.PasswordHash))
+            if (user is not null && !user.IsActive)
+                return Results.Json(new { error = "This user account is inactive" }, statusCode: 403);
+            if (user is null || !BCrypt.Net.BCrypt.Verify(r.Password ?? "", user.PasswordHash))
                 return Results.Unauthorized();
             if (user.CenterId is Guid centerId && !await db.Centers.AnyAsync(c => c.Id == centerId && c.IsActive))
                 return Results.Json(new { error = "This daycare account is disabled" }, statusCode: 403);

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { api } from '../api'
-import { Empty, Field, Notice, PasswordField, SearchBox, useAction, useLoad } from '../ui.jsx'
+import { Empty, Field, Modal, Notice, PasswordField, SearchBox, useAction, useLoad } from '../ui.jsx'
 
 const blank = { name: '', address: '', phone: '', adminName: '', adminEmail: '', adminPassword: '' }
 
@@ -61,9 +61,8 @@ export default function Centers() {
       <section className="dashboard-cards">
         {[['Children', stats?.children ?? 0], ['Staff', stats?.staff ?? 0], ['Daycares', stats?.centers ?? 0], ['Active daycares', stats?.activeCenters ?? 0]].map(([label, value]) => <div className="panel metric" key={label}><span>{label}</span><strong>{value}</strong></div>)}
       </section>
-      <button className="btn" onClick={() => setShowRegistration(!showRegistration)}>{showRegistration ? 'Close registration form' : 'Create daycare'}</button>
-      {showRegistration && <section className="panel">
-        <h2>Add a daycare</h2>
+      <button className="btn" onClick={() => setShowRegistration(true)}>Create daycare</button>
+      {showRegistration && <Modal title="Add a daycare" onClose={() => setShowRegistration(false)} wide>
         <form className="grid" onSubmit={add}>
           <Field label="Daycare name"><input required value={f.name} onChange={set('name')} /></Field>
           <Field label="Address"><input value={f.address} onChange={set('address')} /></Field>
@@ -76,7 +75,7 @@ export default function Centers() {
           <div className="full"><button className="btn">Create daycare and admin</button></div>
         </form>
         <Notice>{err}</Notice>
-      </section>}
+      </Modal>}
 
       <section className="panel">
         <h2>All daycares</h2>
@@ -135,15 +134,15 @@ export default function Centers() {
           </div>
         )}
       </section>
-      {editingCenter && <section className="panel"><h2>Edit daycare</h2><form className="grid" onSubmit={saveCenter}><Field label="Name"><input required value={editingCenter.name} onChange={(e) => setEditingCenter({ ...editingCenter, name: e.target.value })} /></Field><Field label="Address"><input value={editingCenter.address || ''} onChange={(e) => setEditingCenter({ ...editingCenter, address: e.target.value })} /></Field><Field label="Phone"><input value={editingCenter.phone || ''} onChange={(e) => setEditingCenter({ ...editingCenter, phone: e.target.value })} /></Field><Field label="Assign or reassign administrator"><select value={editingCenter.adminId} onChange={(e) => setEditingCenter({ ...editingCenter, adminId: e.target.value })}><option value="">No administrator</option>{adminUsers?.map((a) => <option key={a.id} value={a.id}>{a.fullName} · {a.email}{a.centerId && a.centerId !== editingCenter.id ? ' (assigned to another center)' : ''}</option>)}</select></Field><div><button className="btn">Save daycare</button><button type="button" className="btn ghost" onClick={() => setEditingCenter(null)}>Cancel</button></div></form><Notice>{err}</Notice></section>}
-      {editingAdmin && <section className="panel"><h2>Manage administrator</h2><form className="grid" onSubmit={saveAdmin}>
+      {editingCenter && <Modal title="Edit daycare" onClose={() => setEditingCenter(null)} wide><form className="grid" onSubmit={saveCenter}><Field label="Name"><input required value={editingCenter.name} onChange={(e) => setEditingCenter({ ...editingCenter, name: e.target.value })} /></Field><Field label="Address"><input value={editingCenter.address || ''} onChange={(e) => setEditingCenter({ ...editingCenter, address: e.target.value })} /></Field><Field label="Phone"><input value={editingCenter.phone || ''} onChange={(e) => setEditingCenter({ ...editingCenter, phone: e.target.value })} /></Field><Field label="Assign or reassign administrator"><select value={editingCenter.adminId} onChange={(e) => setEditingCenter({ ...editingCenter, adminId: e.target.value })}><option value="">No administrator</option>{adminUsers?.map((a) => <option key={a.id} value={a.id}>{a.fullName} · {a.email}{a.centerId && a.centerId !== editingCenter.id ? ' (assigned to another center)' : ''}</option>)}</select></Field><div><button className="btn">Save daycare</button><button type="button" className="btn ghost" onClick={() => setEditingCenter(null)}>Cancel</button></div></form><Notice>{err}</Notice></Modal>}
+      {editingAdmin && <Modal title="Manage administrator" onClose={() => setEditingAdmin(null)} wide><form className="grid" onSubmit={saveAdmin}>
         <Field label="Full name"><input required value={editingAdmin.fullName} onChange={(e) => setEditingAdmin({ ...editingAdmin, fullName: e.target.value })} /></Field>
         <Field label="Email"><input required type="email" value={editingAdmin.email} onChange={(e) => setEditingAdmin({ ...editingAdmin, email: e.target.value })} /></Field>
         <Field label="Phone"><input value={editingAdmin.phone || ''} onChange={(e) => setEditingAdmin({ ...editingAdmin, phone: e.target.value })} /></Field>
         <Field label="Assign to daycare"><select required value={editingAdmin.centerId || ''} onChange={(e) => setEditingAdmin({ ...editingAdmin, centerId: e.target.value })}><option value="">Choose a daycare</option>{centers?.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
         <label className="check"><input type="checkbox" checked={editingAdmin.isActive} onChange={(e) => setEditingAdmin({ ...editingAdmin, isActive: e.target.checked })} />Account is active</label>
         <div><button className="btn">Save administrator</button><button type="button" className="btn ghost" onClick={() => setEditingAdmin(null)}>Cancel</button></div>
-      </form><Notice>{err}</Notice></section>}
+      </form><Notice>{err}</Notice></Modal>}
     </>
   )
 }
