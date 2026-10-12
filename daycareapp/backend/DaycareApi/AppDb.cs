@@ -23,6 +23,8 @@ public class AppDb(DbContextOptions<AppDb> options, IHttpContextAccessor http) :
     public DbSet<DailyReport> DailyReports => Set<DailyReport>();
     public DbSet<DailyReportEntry> Entries => Set<DailyReportEntry>();
     public DbSet<Announcement> Announcements => Set<Announcement>();
+    public DbSet<Conversation> Conversations => Set<Conversation>();
+    public DbSet<Message> Messages => Set<Message>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -43,6 +45,8 @@ public class AppDb(DbContextOptions<AppDb> options, IHttpContextAccessor http) :
         b.Entity<Attendance>().HasIndex(x => new { x.ChildId, x.CheckInAt });
         b.Entity<Announcement>().HasIndex(x => new { x.CenterId, x.PublishedAt });
         b.Entity<ChildGuardian>().HasIndex(x => x.GuardianId);
+        b.Entity<Conversation>().HasIndex(x => new { x.CenterId, x.UpdatedAt });
+        b.Entity<Message>().HasIndex(x => new { x.ConversationId, x.SentAt });
 
         // foreign keys to users / centers that have no navigation property
         b.Entity<User>().HasOne<Center>().WithMany().HasForeignKey(x => x.CenterId);
@@ -53,6 +57,10 @@ public class AppDb(DbContextOptions<AppDb> options, IHttpContextAccessor http) :
         b.Entity<Attendance>().HasOne<User>().WithMany().HasForeignKey(x => x.CheckedOutBy);
         b.Entity<DailyReport>().HasOne<User>().WithMany().HasForeignKey(x => x.CreatedBy);
         b.Entity<DailyReportEntry>().HasOne<User>().WithMany().HasForeignKey(x => x.CreatedBy);
+        b.Entity<Conversation>().HasOne(x => x.ParentUser).WithMany().HasForeignKey(x => x.ParentUserId);
+        b.Entity<Conversation>().HasOne(x => x.StaffUser).WithMany().HasForeignKey(x => x.StaffUserId);
+        b.Entity<Conversation>().HasOne(x => x.Child).WithMany().HasForeignKey(x => x.ChildId);
+        b.Entity<Message>().HasOne(x => x.Sender).WithMany().HasForeignKey(x => x.SenderId);
 
         // tenant isolation
         b.Entity<Classroom>().HasQueryFilter(x => x.CenterId == CurrentCenterId);
@@ -65,6 +73,8 @@ public class AppDb(DbContextOptions<AppDb> options, IHttpContextAccessor http) :
         b.Entity<ChildGuardian>().HasQueryFilter(x =>
             x.Child.CenterId == CurrentCenterId && x.Guardian.CenterId == CurrentCenterId);
         b.Entity<DailyReportEntry>().HasQueryFilter(x => x.Report.CenterId == CurrentCenterId);
+        b.Entity<Conversation>().HasQueryFilter(x => x.CenterId == CurrentCenterId);
+        b.Entity<Message>().HasQueryFilter(x => x.Conversation.CenterId == CurrentCenterId);
 
         // never cascade-delete: we deactivate instead (soft delete)
         foreach (var fk in b.Model.GetEntityTypes().SelectMany(e => e.GetForeignKeys()))

@@ -228,6 +228,47 @@ namespace DaycareApi.Migrations
                     b.ToTable("Classrooms");
                 });
 
+            modelBuilder.Entity("DaycareApi.Conversation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CenterId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ChildId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("ParentUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("StaffUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Subject")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChildId");
+
+                    b.HasIndex("ParentUserId");
+
+                    b.HasIndex("StaffUserId");
+
+                    b.HasIndex("CenterId", "UpdatedAt");
+
+                    b.ToTable("Conversations");
+                });
+
             modelBuilder.Entity("DaycareApi.DailyReport", b =>
                 {
                     b.Property<Guid>("Id")
@@ -323,6 +364,37 @@ namespace DaycareApi.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("Guardians");
+                });
+
+            modelBuilder.Entity("DaycareApi.Message", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("ConversationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("ReadAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("SenderId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("SentAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SenderId");
+
+                    b.HasIndex("ConversationId", "SentAt");
+
+                    b.ToTable("Messages");
                 });
 
             modelBuilder.Entity("DaycareApi.PasswordResetToken", b =>
@@ -512,6 +584,32 @@ namespace DaycareApi.Migrations
                     b.Navigation("Guardian");
                 });
 
+            modelBuilder.Entity("DaycareApi.Conversation", b =>
+                {
+                    b.HasOne("DaycareApi.Child", "Child")
+                        .WithMany()
+                        .HasForeignKey("ChildId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("DaycareApi.User", "ParentUser")
+                        .WithMany()
+                        .HasForeignKey("ParentUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("DaycareApi.User", "StaffUser")
+                        .WithMany()
+                        .HasForeignKey("StaffUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Child");
+
+                    b.Navigation("ParentUser");
+
+                    b.Navigation("StaffUser");
+                });
+
             modelBuilder.Entity("DaycareApi.DailyReport", b =>
                 {
                     b.HasOne("DaycareApi.Child", "Child")
@@ -552,6 +650,25 @@ namespace DaycareApi.Migrations
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("DaycareApi.Message", b =>
+                {
+                    b.HasOne("DaycareApi.Conversation", "Conversation")
+                        .WithMany("Messages")
+                        .HasForeignKey("ConversationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("DaycareApi.User", "Sender")
+                        .WithMany()
+                        .HasForeignKey("SenderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Conversation");
+
+                    b.Navigation("Sender");
                 });
 
             modelBuilder.Entity("DaycareApi.PasswordResetToken", b =>
@@ -595,6 +712,11 @@ namespace DaycareApi.Migrations
                         .WithMany()
                         .HasForeignKey("CenterId")
                         .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("DaycareApi.Conversation", b =>
+                {
+                    b.Navigation("Messages");
                 });
 
             modelBuilder.Entity("DaycareApi.DailyReport", b =>

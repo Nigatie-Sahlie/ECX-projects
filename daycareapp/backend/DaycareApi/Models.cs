@@ -151,3 +151,31 @@ public class Announcement
     public string Body { get; set; } = "";
     public DateTime PublishedAt { get; set; } = DateTime.UtcNow;
 }
+
+public class Conversation
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid CenterId { get; set; }
+    public Guid ParentUserId { get; set; }
+    public Guid StaffUserId { get; set; }
+    public Guid? ChildId { get; set; }
+    public string Subject { get; set; } = "";
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+    public User ParentUser { get; set; } = null!;
+    public User StaffUser { get; set; } = null!;
+    public Child? Child { get; set; }
+    public List<Message> Messages { get; set; } = new();
+}
+
+public class Message
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid ConversationId { get; set; }
+    public Guid SenderId { get; set; }
+    public string Body { get; set; } = "";
+    public DateTime SentAt { get; set; } = DateTime.UtcNow;
+    public DateTime? ReadAt { get; set; }
+    public Conversation Conversation { get; set; } = null!;
+    public User Sender { get; set; } = null!;
+}

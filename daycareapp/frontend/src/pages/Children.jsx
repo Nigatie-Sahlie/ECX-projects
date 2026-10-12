@@ -117,7 +117,7 @@ export default function Children() {
   const [staff] = useLoad(() => (isAdmin ? api('/staff') : Promise.resolve([])))
   const [guardians, reloadGuardians] = useLoad(() => (isAdmin ? api('/guardians') : Promise.resolve([])))
   const [f, setF] = useState(blank)
-  const [open, setOpen] = useState(null)
+  const [manage, setManage] = useState(null)
   const [edit, setEdit] = useState(null)
   const [showEnrollment, setShowEnrollment] = useState(false)
   const [details, setDetails] = useState(null)
@@ -140,7 +140,11 @@ export default function Children() {
   const unlink = (c, gid) => run(() => api(`/children/${c.id}/guardians/${gid}`, { method: 'DELETE' })).then(reload)
   const save = async (e) => {
     e.preventDefault()
-    if (await run(() => api(`/children/${edit.id}`, { method: 'PUT', body: { ...edit } }))) { setEdit(null); reload() }
+    if (await run(() => api(`/children/${edit.id}`, { method: 'PUT', body: { ...edit } }))) { setManage(null); setEdit(null); reload() }
+  }
+  const openManage = (c) => {
+    setManage(c)
+    setEdit({ id: c.id, firstName: c.firstName, lastName: c.lastName, dateOfBirth: c.dateOfBirth?.slice(0, 10), classroomId: c.classroomId, allergies: c.allergies || '', medicalNotes: c.medicalNotes || '', isActive: c.isActive })
   }
   return (
     <>
@@ -222,10 +226,7 @@ export default function Children() {
                 </button>
                 {isAdmin && (
                   <div className="actions">
-                    <button className="btn ghost" onClick={() => setEdit({ id: c.id, firstName: c.firstName, lastName: c.lastName, dateOfBirth: c.dateOfBirth?.slice(0, 10), classroomId: c.classroomId, allergies: c.allergies || '', medicalNotes: c.medicalNotes || '', isActive: c.isActive })}>Edit</button>
-                    <button className="btn ghost" onClick={() => setOpen(open === c.id ? null : c.id)}>
-                      {open === c.id ? 'Close' : 'Manage guardians'}
-                    </button>
+                    <button className="btn ghost" onClick={() => openManage(c)}>Manage child</button>
                     <button className="btn ghost" onClick={() => toggleActive(c)}>{c.isActive ? 'Deactivate' : 'Reactivate'}</button>
                   </div>
                 )}
@@ -241,26 +242,28 @@ export default function Children() {
                   <li key={g.guardianId}>
                     {g.fullName} ({g.relationship}){g.isPrimary && ' · primary'}{!g.canPickup && ' · no pickup'}
                     {g.phone && ` · ${g.phone}`}
-                    {isAdmin && <><button className="link" onClick={() => setOpen(c.id)}>Edit</button><button className="link" onClick={() => unlink(c, g.guardianId)}>Remove</button></>}
+                    {isAdmin && <><button className="link" onClick={() => openManage(c)}>Edit</button><button className="link" onClick={() => unlink(c, g.guardianId)}>Remove</button></>}
                   </li>
                 ))}
                 </ul>
               </Modal>}
-              {isAdmin && open === c.id && (
-                <Modal title={`Manage guardians for ${c.firstName} ${c.lastName}`} onClose={() => setOpen(null)} wide>
-                  <GuardianPanel child={c} guardians={guardians} reload={reload} reloadGuardians={reloadGuardians} />
-                </Modal>
-              )}
-              {edit?.id === c.id && <Modal title={`Edit ${c.firstName} ${c.lastName}`} onClose={() => setEdit(null)}>
-                <form className="grid" onSubmit={save}>
-                <Field label="First name"><input required value={edit.firstName} onChange={(e) => setEdit({ ...edit, firstName: e.target.value })} /></Field>
-                <Field label="Last name"><input required value={edit.lastName} onChange={(e) => setEdit({ ...edit, lastName: e.target.value })} /></Field>
-                <Field label="Date of birth"><input required type="date" value={edit.dateOfBirth} onChange={(e) => setEdit({ ...edit, dateOfBirth: e.target.value })} /></Field>
-                <Field label="Classroom"><select required value={edit.classroomId} onChange={(e) => setEdit({ ...edit, classroomId: e.target.value })}>{rooms?.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}</select></Field>
-                <Field label="Allergies"><input value={edit.allergies} onChange={(e) => setEdit({ ...edit, allergies: e.target.value })} /></Field>
-                <Field label="Medical notes"><input value={edit.medicalNotes} onChange={(e) => setEdit({ ...edit, medicalNotes: e.target.value })} /></Field>
-                <div className="actions"><button className="btn">Save child</button><button type="button" className="btn ghost" onClick={() => setEdit(null)}>Cancel</button></div>
-                </form>
+              {isAdmin && manage?.id === c.id && <Modal title={`Manage ${c.firstName} ${c.lastName}`} onClose={() => { setManage(null); setEdit(null) }} wide>
+                <div className="manage-sections">
+                  <form className="grid" onSubmit={save}>
+                    <h3 className="full">Child details</h3>
+                    <Field label="First name"><input required value={edit.firstName} onChange={(e) => setEdit({ ...edit, firstName: e.target.value })} /></Field>
+                    <Field label="Last name"><input required value={edit.lastName} onChange={(e) => setEdit({ ...edit, lastName: e.target.value })} /></Field>
+                    <Field label="Date of birth"><input required type="date" value={edit.dateOfBirth} onChange={(e) => setEdit({ ...edit, dateOfBirth: e.target.value })} /></Field>
+                    <Field label="Classroom"><select required value={edit.classroomId} onChange={(e) => setEdit({ ...edit, classroomId: e.target.value })}>{rooms?.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}</select></Field>
+                    <Field label="Allergies"><input value={edit.allergies} onChange={(e) => setEdit({ ...edit, allergies: e.target.value })} /></Field>
+                    <Field label="Medical notes"><input value={edit.medicalNotes} onChange={(e) => setEdit({ ...edit, medicalNotes: e.target.value })} /></Field>
+                    <div className="actions full"><button className="btn">Save child details</button></div>
+                  </form>
+                  <div>
+                    <h3>Guardians</h3>
+                    <GuardianPanel child={c} guardians={guardians} reload={reload} reloadGuardians={reloadGuardians} />
+                  </div>
+                </div>
               </Modal>}
             </div>
           ))

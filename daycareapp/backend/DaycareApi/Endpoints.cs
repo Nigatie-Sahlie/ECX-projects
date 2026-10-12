@@ -612,6 +612,154 @@ public static class Api
             return Results.NoContent();
         });
 
+        // ---------- private messages ----------
+        any.MapGet("/messaging/recipients", async (AppDb db, ClaimsPrincipal p) =>
+        {
+            var uid = p.Uid();
+            var centerId = p.Cid();
+            var users = db.Users.Where(u => u.CenterId == centerId && u.IsActive && u.Id != uid);
+            if (p.RoleName() == Roles.Parent)
+            {
+                var classrooms = db.ChildGuardians
+                    .Where(g => g.Guardian.UserId == uid)
+                    .Select(g => g.Child.ClassroomId);
+                users = users.Where(u => u.Role == Roles.Admin ||
+                    (u.Role == Roles.Staff && db.StaffClassrooms.Any(s =>
+                        s.UserId == u.Id && classrooms.Contains(s.ClassroomId))));
+            }
+            else if (p.RoleName() == Roles.Staff)
+            {
+                var classrooms = db.StaffClassrooms.Where(s => s.UserId == uid).Select(s => s.ClassroomId);
+                var parentIds = db.ChildGuardians
+                    .Where(g => classrooms.Contains(g.Child.ClassroomId) && g.Guardian.UserId != null)
+                    .Select(g => g.Guardian.UserId!.Value);
+                users = users.Where(u => u.Role == Roles.Admin || parentIds.Contains(u.Id));
+            }
+            else if (p.RoleName() == Roles.Admin)
+            {
+                users = users.Where(u => u.Role == Roles.Staff ||
+                    (u.Role == Roles.Parent && db.Guardians.Any(g => g.UserId == u.Id)));
+            }
+            else
+            {
+                users = users.Where(u => false);
+            }
+
+            return await users.OrderBy(u => u.FullName)
+                .Select(u => new { u.Id, u.FullName, u.Role })
+                .ToListAsync();
+        });
+
+        any.MapGet("/messages", async (AppDb db, ClaimsPrincipal p) =>
+        {
+            var uid = p.Uid();
+            return await db.Conversations
+                .Where(c => c.ParentUserId == uid || c.StaffUserId == uid)
+                .OrderByDescending(c => c.UpdatedAt)
+                .Select(c => new
+                {
+                    c.Id, c.Subject, c.UpdatedAt, c.ChildId,
+                    OtherUser = c.ParentUserId == uid ? c.StaffUser.FullName : c.ParentUser.FullName,
+                    OtherRole = c.ParentUserId == uid ? c.StaffUser.Role : c.ParentUser.Role,
+                    Child = c.Child == null ? null : c.Child.FirstName + " " + c.Child.LastName,
+                    Unread = c.Messages.Count(m => m.SenderId != uid && m.ReadAt == null),
+                    LastMessage = c.Messages.OrderByDescending(m => m.SentAt)
+                        .Select(m => m.Body).FirstOrDefault(),
+                }).ToListAsync();
+        });
+
+        any.MapGet("/messages/{id:guid}", async (Guid id, AppDb db, ClaimsPrincipal p) =>
+        {
+            var uid = p.Uid();
+            var conversation = await db.Conversations
+                .Include(c => c.Messages).ThenInclude(m => m.Sender)
+                .Include(c => c.Child)
+                .Include(c => c.ParentUser)
+                .Include(c => c.StaffUser)
+                .FirstOrDefaultAsync(c => c.Id == id && (c.ParentUserId == uid || c.StaffUserId == uid));
+            if (conversation is null) return Results.NotFound();
+
+            var unread = conversation.Messages.Where(m => m.SenderId != uid && m.ReadAt == null).ToList();
+            foreach (var message in unread) message.ReadAt = DateTime.UtcNow;
+            if (unread.Count > 0) await db.SaveChangesAsync();
+
+            return Results.Ok(new
+            {
+                conversation.Id, conversation.Subject, conversation.ChildId,
+                Child = conversation.Child == null ? null : conversation.Child.FirstName + " " + conversation.Child.LastName,
+                OtherUser = conversation.ParentUserId == uid ? conversation.StaffUser.FullName : conversation.ParentUser.FullName,
+                Messages = conversation.Messages.OrderBy(m => m.SentAt)
+                    .Select(m => new { m.Id, m.Body, m.SentAt, m.SenderId, Sender = m.Sender.FullName, SenderRole = m.Sender.Role }),
+            });
+        });
+
+        any.MapPost("/messages", async (MessageReq r, AppDb db, ClaimsPrincipal p) =>
+        {
+            if (string.IsNullOrWhiteSpace(r.Body) || string.IsNullOrWhiteSpace(r.Subject))
+                return Bad("Subject and message are required");
+            var senderId = p.Uid();
+            var senderRole = p.RoleName();
+            var recipient = await db.Users.FirstOrDefaultAsync(u =>
+                u.Id == r.RecipientId && u.CenterId == p.Cid() && u.IsActive);
+            if (recipient is null || recipient.Id == senderId) return Bad("That recipient is not available");
+
+            Guid parentId;
+            Guid staffId;
+            if (senderRole == Roles.Parent && recipient.Role is Roles.Admin or Roles.Staff)
+            {
+                parentId = senderId; staffId = recipient.Id;
+                if (recipient.Role == Roles.Staff && r.ChildId is not Guid childId)
+                    return Bad("Choose a child when messaging classroom staff");
+                if (recipient.Role == Roles.Staff && !await db.StaffClassrooms.AnyAsync(s =>
+                        s.UserId == recipient.Id && db.Children.Any(c => c.Id == r.ChildId && c.ClassroomId == s.ClassroomId)))
+                    return Results.Forbid();
+            }
+            else if (senderRole is Roles.Admin or Roles.Staff && recipient.Role == Roles.Parent)
+            {
+                parentId = recipient.Id; staffId = senderId;
+                if (senderRole == Roles.Staff)
+                {
+                    if (r.ChildId is not Guid childId ||
+                        !await db.StaffClassrooms.AnyAsync(s =>
+                            s.UserId == senderId && db.Children.Any(c => c.Id == childId && c.ClassroomId == s.ClassroomId)))
+                        return Results.Forbid();
+                }
+            }
+            else return Results.Forbid();
+
+            if (r.ChildId is Guid selectedChild &&
+                !await db.ChildGuardians.AnyAsync(g => g.ChildId == selectedChild && g.Guardian.UserId == parentId))
+                return Bad("That child is not linked to the parent");
+
+            var conversation = new Conversation
+            {
+                CenterId = p.Cid()!.Value, ParentUserId = parentId, StaffUserId = staffId,
+                ChildId = r.ChildId, Subject = r.Subject.Trim(),
+            };
+            conversation.Messages.Add(new Message { SenderId = senderId, Body = r.Body.Trim() });
+            db.Conversations.Add(conversation);
+            await db.SaveChangesAsync();
+            return Results.Ok(new { conversation.Id });
+        });
+
+        any.MapPost("/messages/{id:guid}/reply", async (Guid id, ReplyReq r, AppDb db, ClaimsPrincipal p) =>
+        {
+            if (string.IsNullOrWhiteSpace(r.Body)) return Bad("Message is required");
+            var uid = p.Uid();
+            var conversation = await db.Conversations.FirstOrDefaultAsync(c =>
+                c.Id == id && (c.ParentUserId == uid || c.StaffUserId == uid));
+            if (conversation is null) return Results.NotFound();
+            db.Messages.Add(new Message
+            {
+                ConversationId = conversation.Id,
+                SenderId = uid,
+                Body = r.Body.Trim(),
+            });
+            conversation.UpdatedAt = DateTime.UtcNow;
+            await db.SaveChangesAsync();
+            return Results.NoContent();
+        });
+
         any.MapGet("/dashboard", async Task<IResult> (AppDb db, ClaimsPrincipal p) =>
         {
             if (p.RoleName() == Roles.SuperAdmin)
@@ -679,3 +827,5 @@ public record CheckOutReq(Guid? PickedUpByGuardianId);
 public record NewEntry(Guid ChildId, DateOnly Date, string EntryType, string? Details, DateTime? OccurredAt);
 public record ReportReq(string? GeneralNote, bool Publish);
 public record AnnReq(string Title, string Body, Guid? ClassroomId);
+public record MessageReq(Guid RecipientId, Guid? ChildId, string? Subject, string? Body);
+public record ReplyReq(string? Body);

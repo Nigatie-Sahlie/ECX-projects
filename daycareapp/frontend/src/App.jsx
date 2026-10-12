@@ -12,11 +12,12 @@ import Announcements from './pages/Announcements.jsx'
 import ChangePassword from './pages/ChangePassword.jsx'
 import ForgotPassword from './pages/ForgotPassword.jsx'
 import ResetPassword from './pages/ResetPassword.jsx'
+import Messages from './pages/Messages.jsx'
 
 const AuthCtx = createContext(null)
 export const useAuth = () => useContext(AuthCtx)
 
-const ROLE_LABEL = { super_admin: 'Platform owner', admin: 'Daycare admin', staff: 'Teacher', parent: 'Parent' }
+const ROLE_LABEL = { super_admin: 'Super admin', admin: 'Center admin', staff: 'Staff', parent: 'Parent' }
 
 // [path, label, roles allowed, component]
 const PAGES = [
@@ -25,6 +26,7 @@ const PAGES = [
   ['/attendance', 'Attendance', ['admin', 'staff', 'parent'], Attendance],
   ['/reports', 'Daily reports', ['admin', 'staff', 'parent'], Reports],
   ['/announcements', 'Announcements', ['admin', 'staff', 'parent'], Announcements],
+  ['/messages', 'Messages', ['admin', 'staff', 'parent'], Messages],
   ['/staff', 'Staff', ['admin'], Staff],
   ['/classrooms', 'Classrooms', ['admin'], Classrooms],
 ]
@@ -86,6 +88,7 @@ export default function App() {
           {PAGES.map(([path, , roles, Page]) =>
             roles.includes(user?.role) ? <Route key={path} path={path} element={<Page />} /> : null
           )}
+          <Route path="/change-password" element={<ChangePassword />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
