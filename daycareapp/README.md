@@ -1,4 +1,4 @@
-# DaycarApp
+# KidSyncApp
 
 Multi-daycare management app. **.NET 8 Web API + PostgreSQL + React (Vite).**
 
@@ -35,6 +35,28 @@ npm run dev
 ```
 
 Open http://localhost:5173 and sign in.
+
+### Test password reset locally
+
+The development settings are configured for Mailpit, a local SMTP server that
+captures email without sending it to real recipients.
+
+1. Start Mailpit from the repository root:
+
+   ```bash
+   docker compose up -d mailpit
+   ```
+
+2. Start the backend and frontend using the commands above.
+3. Open the Mailpit inbox at http://localhost:8025.
+4. In the app, open **Forgot password?**, enter an existing demo account email,
+   and submit the form.
+5. Open the reset email in Mailpit, follow the link, choose a new password,
+   and sign in with it.
+
+The local SMTP settings use `localhost:1025` and are defined in the ignored
+`backend/DaycareApi/appsettings.Development.json`. Do not put real SMTP
+credentials in that file.
 
 ## Demo accounts (created on first run)
 
@@ -100,8 +122,10 @@ dotnet test DaycareApi.Tests/DaycareApi.Tests.csproj
 
 The test host creates the schema with `EnsureCreated`, starts the API in the `Testing`
 environment, and uses the seeded demo accounts to verify authentication and role-based
-endpoint permissions. Keep `DAYCARE_TEST_CONNECTION` pointed at a disposable test
-database; no production code path is changed by the test host.
+endpoint permissions. Password-reset tests create isolated users and replace SMTP with
+an in-memory email sender, so they never send real email. Keep
+`DAYCARE_TEST_CONNECTION` pointed at a disposable test database; no production code
+path is changed by the test host.
 
 ### Moving a database created with EnsureCreated
 
@@ -122,7 +146,7 @@ dropping it.
 - Configure `Smtp` and `Frontend:ResetPasswordUrl` in `appsettings.json` for forgot-password emails.
 - Payments are intentionally deferred.
 
-## Authentication and modular structure
+## Authentication and modular structure****
 
 Authentication endpoints are grouped in `AuthEndpoints.cs`. The forgot-password flow
 stores only a hash of a short-lived, single-use reset token. Requests return the same

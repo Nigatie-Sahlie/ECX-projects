@@ -53,7 +53,10 @@ export default function Centers() {
 
   return (
     <>
-      <h1>Daycares</h1>
+      <div className="page-heading">
+        <h1>Centers</h1>
+        <button className="btn" onClick={() => setShowRegistration(true)}>Create Center</button>
+      </div>
       <Notice>{loadErr}</Notice>
       <Notice>{statsErr}</Notice>
       <Notice>{adminUsersErr}</Notice>
@@ -61,7 +64,6 @@ export default function Centers() {
       <section className="dashboard-cards">
         {[['Children', stats?.children ?? 0], ['Staff', stats?.staff ?? 0], ['Daycares', stats?.centers ?? 0], ['Active daycares', stats?.activeCenters ?? 0]].map(([label, value]) => <div className="panel metric" key={label}><span>{label}</span><strong>{value}</strong></div>)}
       </section>
-      <button className="btn" onClick={() => setShowRegistration(true)}>Create daycare</button>
       {showRegistration && <Modal title="Add a daycare" onClose={() => setShowRegistration(false)} wide>
         <form className="grid" onSubmit={add}>
           <Field label="Daycare name"><input required value={f.name} onChange={set('name')} /></Field>
@@ -72,25 +74,25 @@ export default function Centers() {
           <Field label="Admin password (6+ characters)">
             <PasswordField required minLength={6} value={f.adminPassword} onChange={set('adminPassword')} />
           </Field>
-          <div className="full"><button className="btn">Create daycare and admin</button></div>
+          <div className="full"><button className="btn">Create center and admin</button></div>
         </form>
         <Notice>{err}</Notice>
       </Modal>}
 
       <section className="panel">
-        <h2>All daycares</h2>
+        <h2>All Centers</h2>
         <div className="toolbar">
           <SearchBox value={search} onChange={setSearch} placeholder="Name, address, or admin" />
           <Field label="Status">
             <select value={status} onChange={(e) => setStatus(e.target.value)}>
-              <option value="">All daycares</option>
+              <option value="">All Centers</option>
               <option value="active">Active only</option>
               <option value="disabled">Disabled only</option>
             </select>
           </Field>
         </div>
         {!centers ? null : filteredCenters.length === 0 ? (
-          <Empty>No daycares yet. Add the first one above.</Empty>
+          <Empty>No centers yet. Add the first one above.</Empty>
         ) : (
           <div className="table-wrap">
             <table>
@@ -114,7 +116,7 @@ export default function Centers() {
       </section>
       <section className="panel">
         <h2>Manage administrators</h2>
-        <p className="muted">Edit administrator details, assign them to a daycare, or enable and disable their accounts.</p>
+        <p className="muted">Edit administrator details, assign them to a centers, or enable and disable their accounts.</p>
         {adminUsersErr && <Notice>{adminUsersErr}</Notice>}
         {!adminUsers ? <p className="muted">Loading…</p> : adminUsers.length === 0 ? <Empty>No administrators registered.</Empty> : (
           <div className="table-wrap">

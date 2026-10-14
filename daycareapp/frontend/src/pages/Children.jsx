@@ -148,7 +148,10 @@ export default function Children() {
   }
   return (
     <>
-      <h1>Children</h1>
+      <div className="page-heading">
+        <h1>Children</h1>
+        {isAdmin && <button className="btn" onClick={() => setShowEnrollment(true)}>Enroll child</button>}
+      </div>
       <Notice>{loadErr}</Notice>
       <Notice>{statsErr}</Notice>
       <section className="dashboard-cards">
@@ -161,7 +164,6 @@ export default function Children() {
       </section>
       {isAdmin && (
         <>
-          <button className="btn" onClick={() => setShowEnrollment(true)}>Enroll child</button>
           {showEnrollment && <Modal title="Enroll a child" onClose={() => setShowEnrollment(false)}>
             {rooms && rooms.length === 0 ? (
               <Empty>Add a classroom first (Classrooms page), then enroll children.</Empty>
@@ -221,15 +223,15 @@ export default function Children() {
                   <div className="muted">{age(c.dateOfBirth)} · {c.classroom}</div>
                   {c.staff?.length > 0 && <div className="muted">Staff: {c.staff.map((s) => s.name).filter(Boolean).join(', ')}</div>}
                 </div>
-                <button className="btn ghost" onClick={() => setDetails(details === c.id ? null : c.id)}>
-                  {details === c.id ? 'Hide details' : 'View details'}
-                </button>
-                {isAdmin && (
-                  <div className="actions">
+                <div className="actions card-actions">
+                  <button className="btn ghost" onClick={() => setDetails(details === c.id ? null : c.id)}>
+                    {details === c.id ? 'Hide details' : 'View details'}
+                  </button>
+                  {isAdmin && (
                     <button className="btn ghost" onClick={() => openManage(c)}>Manage child</button>
-                    <button className="btn ghost" onClick={() => toggleActive(c)}>{c.isActive ? 'Deactivate' : 'Reactivate'}</button>
-                  </div>
-                )}
+                  )}
+                  {isAdmin && <button className="btn ghost" onClick={() => toggleActive(c)}>{c.isActive ? 'Deactivate' : 'Reactivate'}</button>}
+                </div>
               </div>
               {details === c.id && <Modal title={`${c.firstName} ${c.lastName} details`} onClose={() => setDetails(null)}>
                 {c.allergies && <div><span className="tag warn">Allergies: {c.allergies}</span></div>}

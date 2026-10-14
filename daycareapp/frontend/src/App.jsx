@@ -21,14 +21,14 @@ const ROLE_LABEL = { super_admin: 'Super admin', admin: 'Center admin', staff: '
 
 // [path, label, roles allowed, component]
 const PAGES = [
-  ['/centers', 'Daycares', ['super_admin'], Centers],
+  ['/centers', 'Centers', ['super_admin'], Centers],
   ['/children', 'Children', ['admin', 'staff'], Children],
+  ['/staff', 'Staff', ['admin'], Staff],
+  ['/classrooms', 'Classrooms', ['admin'], Classrooms],
   ['/attendance', 'Attendance', ['admin', 'staff', 'parent'], Attendance],
   ['/reports', 'Daily reports', ['admin', 'staff', 'parent'], Reports],
   ['/announcements', 'Announcements', ['admin', 'staff', 'parent'], Announcements],
   ['/messages', 'Messages', ['admin', 'staff', 'parent'], Messages],
-  ['/staff', 'Staff', ['admin'], Staff],
-  ['/classrooms', 'Classrooms', ['admin'], Classrooms],
 ]
 
 function Layout() {
@@ -37,8 +37,8 @@ function Layout() {
   return (
     <div className="shell">
       <aside className="side">
-        <div className="brand">DaycarApp</div>
-        <nav>
+        <div className="brand">KidSyncApp</div>
+        <nav>    
           {links.map(([path, label]) => (
             <NavLink key={path} to={path} className={({ isActive }) => (isActive ? 'active' : '')}>
               {label}

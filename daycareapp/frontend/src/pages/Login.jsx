@@ -23,7 +23,7 @@ export default function Login() {
   return (
     <div className="login">
       <form className="panel login-card" onSubmit={submit}>
-        <h1>DaycarApp</h1>
+        <h1>KidSyncApp</h1>
         <p className="muted">Sign in to see today at your daycare.</p>
         <Field label="Email">
           <input type="email" required autoFocus value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} />

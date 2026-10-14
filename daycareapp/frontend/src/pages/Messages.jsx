@@ -93,17 +93,16 @@ export default function Messages() {
             </select>
           </Field>
           <Field label="Related child (optional)">
-            <select required={user.role === 'staff' || (user.role === 'parent' && selectedRecipient?.role === 'staff')} value={compose.childId} onChange={(e) => setCompose({ ...compose, childId: e.target.value })}>
+            <select value={compose.childId} onChange={(e) => setCompose({ ...compose, childId: e.target.value })}>
               <option value="">General message</option>
               {childItems.map((child) => <option key={child.id} value={child.id}>{child.firstName} {child.lastName}</option>)}
             </select>
           </Field>
-          {(user.role === 'staff' || (user.role === 'parent' && selectedRecipient?.role === 'staff')) && <p className="muted">Choose the child whose classroom you want to contact.</p>}
+          {user.role === 'parent' && selectedRecipient?.role === 'staff' && <p className="muted">Choose the child whose classroom you want to contact.</p>}
           <Field label="Subject"><input required value={compose.subject} onChange={(e) => setCompose({ ...compose, subject: e.target.value })} /></Field>
           <Field label="Message"><textarea required rows={5} value={compose.body} onChange={(e) => setCompose({ ...compose, body: e.target.value })} /></Field>
           <div className="actions"><button className="btn">Send message</button><button type="button" className="btn ghost" onClick={() => setShowCompose(false)}>Cancel</button></div>
         </form>
-        <Notice>{err}</Notice>
       </Modal>}
     </>
   )

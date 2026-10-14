@@ -40,7 +40,10 @@ export default function Staff() {
 
   return (
     <>
-      <h1>Staff</h1>
+      <div className="page-heading">
+        <h1>Staff</h1>
+        <button className="btn" onClick={() => setShowAdd(true)}>Add teacher</button>
+      </div>
       <Notice>{loadErr}</Notice>
       <Notice>{statsErr}</Notice>
       <section className="dashboard-cards">
@@ -49,9 +52,8 @@ export default function Staff() {
           ['Classrooms', stats?.classrooms ?? 0],
           ['Children', stats?.enrolled ?? stats?.activeChildren ?? 0],
         ].map(([label, value]) => <div className="panel metric" key={label}><span>{label}</span><strong>{value}</strong></div>)}
-      </section>
-      <button className="btn" onClick={() => setShowAdd(true)}>Add teacher</button>
-      {showAdd && <Modal title="Add a teacher" onClose={() => setShowAdd(false)}>
+        </section>
+        {showAdd && <Modal title="Add a teacher" onClose={() => setShowAdd(false)}>
         <form className="grid" onSubmit={add}>
           <Field label="Full name"><input required value={f.fullName} onChange={set('fullName')} /></Field>
           <Field label="Email"><input type="email" required value={f.email} onChange={set('email')} /></Field>

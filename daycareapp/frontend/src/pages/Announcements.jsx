@@ -34,9 +34,11 @@ export default function Announcements() {
 
   return (
     <>
-      <h1>Announcements</h1>
+      <div className="page-heading">
+        <h1>Announcements</h1>
+        {canPost && <button className="btn" onClick={() => setShowPost(true)}>Post announcement</button>}
+      </div>
       <Notice>{loadErr}</Notice>
-      {canPost && <button className="btn" onClick={() => setShowPost(true)}>Post announcement</button>}
       {showPost && <Modal title="Post an announcement" onClose={() => setShowPost(false)}>
           <form className="stack" onSubmit={post}>
             <Field label="Send to">

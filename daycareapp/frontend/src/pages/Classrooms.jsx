@@ -30,9 +30,11 @@ export default function Classrooms() {
 
   return (
     <>
-      <h1>Classrooms</h1>
+      <div className="page-heading">
+        <h1>Classrooms</h1>
+        <button className="btn" onClick={() => setShowAdd(true)}>Add classroom</button>
+      </div>
       <Notice>{loadErr}</Notice>
-      <button className="btn" onClick={() => setShowAdd(true)}>Add classroom</button>
       {showAdd && <Modal title="Add a classroom" onClose={() => setShowAdd(false)}>
         <form className="grid" onSubmit={add}>
           <Field label="Name"><input required value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></Field>

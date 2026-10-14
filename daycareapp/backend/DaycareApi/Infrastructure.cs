@@ -23,7 +23,7 @@ public sealed class SmtpEmailSender(IConfiguration configuration, ILogger<SmtpEm
 
         using var message = new MailMessage(section["From"] ?? throw new InvalidOperationException("Smtp:From is required"), recipient)
         {
-            Subject = "Reset your DaycarApp password",
+            Subject = "Reset your KidSyncApp password",
             Body = $"Use this link to reset your password. It expires in one hour:\n\n{resetUrl}",
             IsBodyHtml = false,
         };

@@ -10,6 +10,8 @@ namespace DaycareApi.Tests.Fixtures;
 
 public sealed class ApiFactory : WebApplicationFactory<Program>
 {
+    public FakeEmailSender EmailSender { get; } = new();
+
     public static string TestConnection =>
         Environment.GetEnvironmentVariable("DAYCARE_TEST_CONNECTION")
         ?? throw new InvalidOperationException(
@@ -30,6 +32,8 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
         {
             services.RemoveAll<DbContextOptions<AppDb>>();
             services.AddDbContext<AppDb>(options => options.UseNpgsql(connection));
+            services.RemoveAll<IEmailSender>();
+            services.AddSingleton<IEmailSender>(EmailSender);
 
             // The application seeds during startup. Ensure only the dedicated test
             // database has a schema; never drop or clear an existing database.
@@ -37,6 +41,25 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
             using var scope = provider.CreateScope();
             scope.ServiceProvider.GetRequiredService<AppDb>().Database.EnsureCreated();
         });
+    }
+}
+
+public sealed class FakeEmailSender : IEmailSender
+{
+    public string? Recipient { get; private set; }
+    public string? ResetUrl { get; private set; }
+
+    public Task SendPasswordResetAsync(string recipient, string resetUrl, CancellationToken cancellationToken)
+    {
+        Recipient = recipient;
+        ResetUrl = resetUrl;
+        return Task.CompletedTask;
+    }
+
+    public void Clear()
+    {
+        Recipient = null;
+        ResetUrl = null;
     }
 }
 
