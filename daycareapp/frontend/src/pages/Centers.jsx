@@ -62,7 +62,7 @@ export default function Centers() {
       <Notice>{adminUsersErr}</Notice>
       <Notice kind="ok">{success}</Notice>
       <section className="dashboard-cards">
-        {[['Children', stats?.children ?? 0], ['Staff', stats?.staff ?? 0], ['Daycares', stats?.centers ?? 0], ['Active daycares', stats?.activeCenters ?? 0]].map(([label, value]) => <div className="panel metric" key={label}><span>{label}</span><strong>{value}</strong></div>)}
+        {[['Children(Active)', stats?.children ?? 0], ['Staffs', stats?.staff ?? 0], ['Daycares(Total)', stats?.centers ?? 0], ['Daycares(Active)', stats?.activeCenters ?? 0]].map(([label, value]) => <div className="panel metric" key={label}><span>{label}</span><strong>{value}</strong></div>)}
       </section>
       {showRegistration && <Modal title="Add a daycare" onClose={() => setShowRegistration(false)} wide>
         <form className="grid" onSubmit={add}>

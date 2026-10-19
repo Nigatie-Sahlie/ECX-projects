@@ -238,7 +238,14 @@ public static class Api
                 var uid = p.Uid();
                 q = q.Where(c => db.StaffClassrooms.Any(s => s.UserId == uid && s.ClassroomId == c.Id));
             }
-            return await q.OrderBy(c => c.Name).Select(c => new { c.Id, c.Name, c.AgeGroup, c.Capacity }).ToListAsync();
+            return await q.OrderBy(c => c.Name).Select(c => new
+            {
+                c.Id,
+                c.Name,
+                c.AgeGroup,
+                c.Capacity,
+                StudentCount = db.Children.Count(child => child.ClassroomId == c.Id && child.IsActive),
+            }).ToListAsync();
         });
 
         adm.MapPost("/classrooms", async (ClassroomReq r, AppDb db, ClaimsPrincipal p) =>

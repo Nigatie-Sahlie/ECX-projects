@@ -61,7 +61,7 @@ export default function Classrooms() {
                     <div className="actions"><button className="btn">Save</button><button type="button" className="btn ghost" onClick={() => setEdit(null)}>Cancel</button></div>
                     </form>
                   </Modal>
-                ) : <><strong>{r.name}</strong><div className="muted">{r.ageGroup} · up to {r.capacity} children</div></>}
+                ) : <><strong>{r.name}</strong><div className="muted">{r.studentCount} {r.studentCount === 1 ? 'student' : 'students'} currently enrolled</div></>}
               </div>
               {edit?.id !== r.id && <button className="btn ghost" onClick={() => setEdit({ id: r.id, name: r.name, ageGroup: r.ageGroup, capacity: r.capacity })}>Edit</button>}
             </div>
