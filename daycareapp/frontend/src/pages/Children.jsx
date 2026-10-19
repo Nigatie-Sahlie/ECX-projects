@@ -150,7 +150,7 @@ export default function Children() {
     <>
       <div className="page-heading">
         <h1>Children</h1>
-        {isAdmin && <button className="btn" onClick={() => setShowEnrollment(true)}>Enroll child</button>}
+        {isAdmin && <button className="btn" onClick={() => setShowEnrollment(true)}>Add child</button>}
       </div>
       <Notice>{loadErr}</Notice>
       <Notice>{statsErr}</Notice>
@@ -180,7 +180,7 @@ export default function Children() {
                 </Field>
                 <Field label="Allergies"><input value={f.allergies} onChange={set('allergies')} /></Field>
                 <Field label="Medical notes"><input value={f.medicalNotes} onChange={set('medicalNotes')} /></Field>
-                <div className="full"><button className="btn">Enroll child</button></div>
+                <div className="full"><button className="btn">Add child</button></div>
               </form>
             )}
             <Notice>{err}</Notice>

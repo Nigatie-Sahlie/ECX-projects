@@ -44,7 +44,7 @@ captures email without sending it to real recipients.
 1. Start Mailpit from the repository root:
 
    ```bash
-   docker compose up -d mailpit
+      "$HOME/bin/mailpit"  
    ```
 
 2. Start the backend and frontend using the commands above.
@@ -62,10 +62,10 @@ credentials in that file.
 
 | Role | Email | Password |
 |---|---|---|
-| Super admin (platform owner) | super@daycare.local | Super123! |
-| Admin (Sunshine Daycare demo) | admin@demo.local | Admin123! |
-| Staff / teacher | staff@demo.local | Staff123! |
-| Parent | parent@demo.local | Parent123! |
+| Super admin (platform owner) | super@admin.local | 123456 |
+| Admin (Sunshine Daycare demo) | admin@demo.local | 123456 |
+| Staff / teacher | staff@demo.local | 123456 |
+| Parent | parent@demo.local | 123456 |
 
 Change these, and the `Jwt:Key` in `appsettings.json`, before real use.
 
