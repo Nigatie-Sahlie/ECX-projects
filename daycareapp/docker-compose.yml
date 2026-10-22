@@ -1,0 +1,61 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: daycareapp
+      POSTGRES_USER: postgres
+      # Under postgres.environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d daycareapp"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  mailpit:
+    image: axllent/mailpit:v1.21
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
+  api:
+    build:
+      context: ./backend/DaycareApi
+      dockerfile: Dockerfile
+    image: daycare-api
+    ports:
+      - "5000:5000"
+    command: ["--urls", "http://0.0.0.0:5000"]
+    environment:
+      ASPNETCORE_URLS: http://+:5000
+      ASPNETCORE_ENVIRONMENT: Development
+      # Under api.environment:
+      ConnectionStrings__Default: "Host=postgres;Port=5432;Database=daycareapp;Username=postgres;Password=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}"
+      Jwt__Key: ${JWT_KEY:?Set JWT_KEY in .env}
+      Jwt__Issuer: daycareapp
+      Jwt__Hours: "8"
+      Cors__Origin: http://localhost:5173
+      Frontend__ResetPasswordUrl: http://localhost:5173/reset-password
+      Smtp__Enabled: "true"
+      Smtp__Host: mailpit
+      Smtp__Port: "1025"
+      Smtp__UseSsl: "false"
+      Smtp__From: no-reply@daycareapp.local
+    depends_on:
+      postgres:
+        condition: service_healthy
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: http://localhost:5000
+    ports:
+      - "5173:80"
+    depends_on:
+      - api
+
+volumes:
+  postgres_data:

@@ -23,7 +23,7 @@ public static class Seed
         superAdmin.PasswordHash = H("123456");
         superAdmin.FullName = "Platform Owner";
 
-        // demo
+        // Other Demo Users
         var center = db.Centers.FirstOrDefault(c => c.Name == "Sunshine Daycare (demo)");
         if (center is not null)
         {
@@ -57,8 +57,7 @@ public static class Seed
 
     static void SyncDemoUser(AppDb db, Guid centerId, string role, string email, string password, string fullName)
     {
-        var user = db.Users.FirstOrDefault(u =>
-            u.Email == email || (u.CenterId == centerId && u.Role == role));
+        var user = db.Users.FirstOrDefault(u =>u.Email == email || (u.CenterId == centerId && u.Role == role));
         if (user is null)
         {
             user = new User { CenterId = centerId, Email = email, Role = role };

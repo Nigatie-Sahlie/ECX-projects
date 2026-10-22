@@ -31,4 +31,6 @@ secrets.*.json
 # Other files to ignore
 daycareapp-learning-guide.pdf
 learning-guide.md
-docker-compose.yml
+# docker-compose.yml
+
+# /backend/DaycareApi/Dockerfile  

@@ -820,6 +820,7 @@ public record CenterReq(string Name, string? Address, string? Phone, Guid? Admin
 public record AdminUpdate(string FullName, string Email, string? Phone, bool IsActive);
 public record AdminUserUpdate(string? FullName, string? Email, string? Phone, Guid? CenterId, bool IsActive);
 public record ActiveReq(bool IsActive);
+
 // Password is the original API property. NewPassword is accepted as an alias so
 // clients can use the same payload shape as the current password-change endpoint.
 public record ChangePasswordReq(string? CurrentPassword, string? NewPassword);

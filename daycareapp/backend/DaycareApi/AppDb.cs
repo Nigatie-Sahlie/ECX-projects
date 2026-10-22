@@ -7,8 +7,7 @@ public class AppDb(DbContextOptions<AppDb> options, IHttpContextAccessor http) :
 {
     // Center of the signed-in user. Null for super_admin / background work (seeding).
     // Every tenant table is filtered by this, so one daycare can never read another's data.
-    Guid? CurrentCenterId =>
-        Guid.TryParse(http.HttpContext?.User.FindFirstValue("cid"), out var g) ? g : null;
+    Guid? CurrentCenterId => Guid.TryParse(http.HttpContext?.User.FindFirstValue("cid"), out var g) ? g : null;
 
     public DbSet<Center> Centers => Set<Center>();
     public DbSet<User> Users => Set<User>();
