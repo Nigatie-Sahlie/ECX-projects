@@ -30,6 +30,38 @@ builder.Services.AddCors(o => o.AddDefaultPolicy(p =>
 
 var app = builder.Build();
 
+if (cfg.GetValue<bool>("Bootstrap:Enabled"))
+{
+    if (!app.Environment.IsProduction())
+        throw new InvalidOperationException("First-admin bootstrap is allowed only in Production.");
+
+    var email = cfg["Bootstrap:Email"]?.Trim().ToLowerInvariant();
+    var password = cfg["Bootstrap:Password"];
+    var fullName = cfg["Bootstrap:FullName"]?.Trim();
+    if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(fullName) ||
+        string.IsNullOrWhiteSpace(password) || password.Length < 12)
+        throw new InvalidOperationException("Bootstrap email, full name, and a password of at least 12 characters are required.");
+
+    using var scope = app.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<AppDb>();
+    if (db.Users.Any(u => u.Role == Roles.SuperAdmin))
+        throw new InvalidOperationException("A super-admin already exists; bootstrap cannot be repeated.");
+    if (db.Users.Any(u => u.Email == email))
+        throw new InvalidOperationException("That email is already assigned to an account.");
+
+    db.Users.Add(new User
+    {
+        Email = email,
+        PasswordHash = BCrypt.Net.BCrypt.HashPassword(password),
+        Role = Roles.SuperAdmin,
+        FullName = fullName,
+        IsActive = true,
+    });
+    db.SaveChanges();
+    Console.WriteLine($"Created initial super-admin account for {email}.");
+    return;
+}
+
 app.UseMiddleware<ApiExceptionMiddleware>();
 using (var scope = app.Services.CreateScope())
 {

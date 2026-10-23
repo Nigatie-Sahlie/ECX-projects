@@ -58,6 +58,22 @@ services:
     networks:
       - backend
 
+  bootstrap:
+    image: daycare-api:production
+    profiles: ["setup"]
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__Default: Host=postgres;Port=5432;Database=daycareapp;Username=daycareapp;Password=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.production}
+      Bootstrap__Enabled: "true"
+      Bootstrap__Email: ${BOOTSTRAP_ADMIN_EMAIL:-}
+      Bootstrap__Password: ${BOOTSTRAP_ADMIN_PASSWORD:-}
+      Bootstrap__FullName: ${BOOTSTRAP_ADMIN_FULL_NAME:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - backend
+
   frontend:
     build:
       context: ./frontend
