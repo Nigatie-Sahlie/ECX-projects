@@ -1,0 +1,11 @@
+FROM mcr.microsoft.com/dotnet/sdk:8.0
+WORKDIR /src
+
+COPY DaycareApi.csproj ./
+RUN dotnet restore DaycareApi.csproj \
+    && dotnet tool install --global dotnet-ef --version 8.0.11
+
+ENV PATH="$PATH:/root/.dotnet/tools"
+COPY . ./
+
+ENTRYPOINT ["dotnet", "ef", "database", "update", "--project", "DaycareApi.csproj"]

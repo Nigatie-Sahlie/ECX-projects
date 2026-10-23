@@ -1,0 +1,82 @@
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: daycareapp
+      POSTGRES_USER: daycareapp
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.production}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U daycareapp -d daycareapp"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - backend
+
+  api:
+    build:
+      context: ./backend/DaycareApi
+      dockerfile: Dockerfile
+    image: daycare-api:production
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_URLS: http://+:5000
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__Default: Host=postgres;Port=5432;Database=daycareapp;Username=daycareapp;Password=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.production}
+      Jwt__Key: ${JWT_KEY:?Set JWT_KEY in .env.production}
+      Jwt__Issuer: daycareapp
+      Jwt__Hours: "8"
+      Cors__Origin: ${APP_ORIGIN:?Set APP_ORIGIN in .env.production}
+      Frontend__ResetPasswordUrl: ${APP_ORIGIN:?Set APP_ORIGIN in .env.production}/reset-password
+      Smtp__Enabled: ${SMTP_ENABLED:-false}
+      Smtp__Host: ${SMTP_HOST:-localhost}
+      Smtp__Port: ${SMTP_PORT:-587}
+      Smtp__UseSsl: ${SMTP_USE_SSL:-true}
+      Smtp__From: ${SMTP_FROM:-no-reply@example.com}
+      Smtp__Username: ${SMTP_USERNAME:-}
+      Smtp__Password: ${SMTP_PASSWORD:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - backend
+      - frontend
+
+  migrate:
+    build:
+      context: ./backend/DaycareApi
+      dockerfile: Dockerfile.migrations
+    image: daycare-api-migrations:production
+    environment:
+      ConnectionStrings__Default: Host=postgres;Port=5432;Database=daycareapp;Username=daycareapp;Password=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.production}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - backend
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ""
+    image: daycare-frontend:production
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - api
+    networks:
+      - frontend
+
+volumes:
+  postgres_data:
+
+networks:
+  backend:
+    internal: true
+  frontend:

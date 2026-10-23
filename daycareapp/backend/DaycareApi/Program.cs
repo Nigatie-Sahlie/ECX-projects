@@ -37,7 +37,9 @@ using (var scope = app.Services.CreateScope())
     if (app.Environment.IsDevelopment())
         db.Database.Migrate();
 
-    Seed.Run(db);
+    // Demo accounts use public, fixed passwords. Never create or reset them outside development.
+    if (app.Environment.IsDevelopment())
+        Seed.Run(db);
 }
 
 app.UseCors();
