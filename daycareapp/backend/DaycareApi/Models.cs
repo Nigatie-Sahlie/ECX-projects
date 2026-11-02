@@ -179,3 +179,17 @@ public class Message
     public Conversation Conversation { get; set; } = null!;
     public User Sender { get; set; } = null!;
 }
+
+public class Notification
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid UserId { get; set; }
+    public Guid CenterId { get; set; }
+    public string Type { get; set; } = "";
+    public string Title { get; set; } = "";
+    public string Body { get; set; } = "";
+    public string? Link { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime? ReadAt { get; set; }
+    public User User { get; set; } = null!;
+}

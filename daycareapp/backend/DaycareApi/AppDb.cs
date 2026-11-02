@@ -24,6 +24,7 @@ public class AppDb(DbContextOptions<AppDb> options, IHttpContextAccessor http) :
     public DbSet<Announcement> Announcements => Set<Announcement>();
     public DbSet<Conversation> Conversations => Set<Conversation>();
     public DbSet<Message> Messages => Set<Message>();
+    public DbSet<Notification> Notifications => Set<Notification>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -46,6 +47,8 @@ public class AppDb(DbContextOptions<AppDb> options, IHttpContextAccessor http) :
         b.Entity<ChildGuardian>().HasIndex(x => x.GuardianId);
         b.Entity<Conversation>().HasIndex(x => new { x.CenterId, x.UpdatedAt });
         b.Entity<Message>().HasIndex(x => new { x.ConversationId, x.SentAt });
+        b.Entity<Notification>().HasIndex(x => new { x.UserId, x.CreatedAt });
+        b.Entity<Notification>().HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId);
 
         // foreign keys to users / centers that have no navigation property
         b.Entity<User>().HasOne<Center>().WithMany().HasForeignKey(x => x.CenterId);
@@ -74,6 +77,7 @@ public class AppDb(DbContextOptions<AppDb> options, IHttpContextAccessor http) :
         b.Entity<DailyReportEntry>().HasQueryFilter(x => x.Report.CenterId == CurrentCenterId);
         b.Entity<Conversation>().HasQueryFilter(x => x.CenterId == CurrentCenterId);
         b.Entity<Message>().HasQueryFilter(x => x.Conversation.CenterId == CurrentCenterId);
+        b.Entity<Notification>().HasQueryFilter(x => x.CenterId == CurrentCenterId);
 
         // never cascade-delete: we deactivate instead (soft delete)
         foreach (var fk in b.Model.GetEntityTypes().SelectMany(e => e.GetForeignKeys()))

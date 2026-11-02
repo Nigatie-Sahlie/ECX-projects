@@ -63,6 +63,11 @@ h3 { font-size: 1rem; margin: 0.25rem 0; }
 .me { display: flex; flex-direction: column; gap: 0.15rem; font-size: 0.9rem; }
 .me span { color: #cfc7ea; margin-bottom: 0.5rem; }
 .account-actions { display: flex; align-items: center; gap: 0.65rem; flex-wrap: wrap; }
+.notification-menu { position: relative; font-size: 0.85rem; }
+.notification-menu summary { cursor: pointer; color: #fff; }
+.notification-list { position: absolute; z-index: 3; bottom: 1.8rem; left: 0; width: 280px; max-height: 320px; overflow: auto; padding: 0.4rem; background: #fff; color: var(--ink); border-radius: 8px; box-shadow: 0 0.35rem 1rem rgba(0,0,0,.2); }
+.notification-list button { display: grid; gap: 0.15rem; width: 100%; padding: 0.55rem; border: 0; border-bottom: 1px solid var(--line); background: transparent; text-align: left; color: inherit; cursor: pointer; }
+.notification-list button:hover, .notification-list .unread-notification { background: var(--off-bg); }
 .account-link { color: #fff; font-size: 0.85rem; }
 .side .btn.ghost { color: #fff; border-color: rgba(255, 255, 255, 0.5); }
 .main { padding: 2rem; max-width: 980px; width: 100%; }

@@ -13,20 +13,26 @@ Multi-daycare management app. **.NET 8 Web API + PostgreSQL + React (Vite).**
 dotnet tool install --global dotnet-ef --version 8.*
 ```
 
-## Run it
+## Run modes
 
-**1. Database.** Edit `backend/DaycareApi/appsettings.json` and set your PostgreSQL password in `ConnectionStrings:Default`.
-The database must exist before the first start. In development, pending EF Core migrations
-are applied automatically and demo data is seeded afterward.
+The application supports three independent run modes. They use the same API and
+frontend source, so messaging, notifications, password reset, and all other
+features remain consistent. Each mode has its own database configuration and
+should be tested separately.
 
-**2. Backend** (http://localhost:5000)
+### 1. Local backend and frontend
+
+This mode uses PostgreSQL installed on the host. Configure the local database
+connection and JWT key in a local copy of
+`backend/DaycareApi/appsettings.example.json` named
+`backend/DaycareApi/appsettings.json`. The database must exist before startup.
 
 ```bash
 cd backend/DaycareApi
 dotnet run
 ```
 
-**3. Frontend** (http://localhost:5173)
+In another terminal:
 
 ```bash
 cd frontend
@@ -34,7 +40,59 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:5173 and sign in.
+Open http://localhost:5173. Development startup applies pending migrations and
+seeds demo accounts. The API runs at http://localhost:5000.
+
+### 2. Docker Compose development
+
+This mode runs PostgreSQL, Mailpit, the API, and the frontend in containers.
+Configure `POSTGRES_PASSWORD` and `JWT_KEY` in the root `.env` file.
+
+```bash
+docker compose up --build
+```
+
+Open http://localhost:5173. Stop it with `Ctrl+C`, or use:
+
+```bash
+docker compose down
+```
+
+The Docker development database is stored in the separate
+`daycareapp_docker_postgres_data` volume and cannot be confused with the
+production Compose database. Mailpit is available at http://localhost:8025.
+
+### 3. Production Compose
+
+Production does not seed demo data or apply migrations during API startup.
+Create a separate `.env.production` file containing the production database
+password, JWT key, public application origin, and optional bootstrap admin
+values. Do not copy development credentials into it.
+
+First apply database migrations:
+
+```bash
+docker compose --env-file .env.production -f docker-compose.prod.yml run --rm migrate
+```
+
+Start the production services:
+
+```bash
+docker compose --env-file .env.production -f docker-compose.prod.yml up --build -d
+```
+
+The application is available at the configured `APP_ORIGIN` (port 80 by
+default). The production database is stored in the separate
+`daycareapp_production_postgres_data` volume.
+
+For a first deployment, create the initial super-admin once:
+
+```bash
+docker compose --env-file .env.production -f docker-compose.prod.yml \
+  --profile setup run --rm bootstrap
+```
+
+Do not run the bootstrap command after a super-admin already exists.
 
 ### Test password reset locally
 
@@ -54,9 +112,19 @@ captures email without sending it to real recipients.
 5. Open the reset email in Mailpit, follow the link, choose a new password,
    and sign in with it.
 
-The local SMTP settings use `localhost:1025` and are defined in the ignored
-`backend/DaycareApi/appsettings.Development.json`. Do not put real SMTP
-credentials in that file.
+The local SMTP settings use `localhost:1025` and are defined in the local
+`backend/DaycareApi/appsettings.json`. Do not put real SMTP credentials in
+the template or commit the local file. Docker Compose reads the corresponding
+SMTP values from the ignored root `.env` file.
+
+### Email and in-app notifications
+
+New private messages and announcements create persistent in-app notifications.
+Signed-in clients receive them immediately over the authenticated SignalR hub at
+`/hubs/notifications`; the notification bell also loads recent notifications
+from `/api/notifications` and supports marking them read. The same events are
+sent by email through the configured SMTP server. SMTP can be disabled with
+`Smtp:Enabled=false` without affecting in-app delivery.
 
 ## Demo accounts (created on first run)
 
@@ -78,7 +146,7 @@ Change these, and the `Jwt:Key` in `appsettings.json`, before real use.
 
 ## How it maps to the schema
 
-Tables: `Centers, Users, StaffProfiles, Classrooms, StaffClassrooms, Guardians, Children, ChildGuardians, Attendance, DailyReports, Entries (daily_report_entries), Announcements`.
+Tables: `Centers, Users, StaffProfiles, Classrooms, StaffClassrooms, Guardians, Children, ChildGuardians, Attendance, DailyReports, Entries (daily_report_entries), Announcements, Conversations, Messages, Notifications`.
 
 - Daycare isolation: `AppDb.cs` adds a global query filter on `CenterId` taken from the login token, so one daycare can never read another's rows.
 - Role rules per endpoint are in `Endpoints.cs`; the `Visible()` helper limits children by role (admin = all, staff = their classrooms, parent = linked children).

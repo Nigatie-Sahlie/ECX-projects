@@ -43,6 +43,21 @@ public static class Api
         var adm = api.MapGroup("").RequireAuthorization(p => p.RequireRole(Roles.Admin));
         var sup = api.MapGroup("/centers").RequireAuthorization(p => p.RequireRole(Roles.SuperAdmin));
 
+        any.MapGet("/notifications", async (AppDb db, ClaimsPrincipal p) =>
+            await db.Notifications.Where(n => n.UserId == p.Uid())
+                .OrderByDescending(n => n.CreatedAt).Take(50)
+                .Select(n => new { n.Id, n.Type, n.Title, n.Body, n.Link, n.CreatedAt, n.ReadAt })
+                .ToListAsync());
+
+        any.MapPost("/notifications/{id:guid}/read", async (Guid id, AppDb db, ClaimsPrincipal p) =>
+        {
+            var notification = await db.Notifications.FirstOrDefaultAsync(n => n.Id == id && n.UserId == p.Uid());
+            if (notification is null) return Results.NotFound();
+            notification.ReadAt ??= DateTime.UtcNow;
+            await db.SaveChangesAsync();
+            return Results.NoContent();
+        });
+
         // ---------- super admin: daycares ----------
         sup.MapGet("", async (AppDb db) =>
         {
@@ -565,7 +580,7 @@ public static class Api
         });
 
         // admin: whole center or any classroom. staff: only their own classrooms.
-        ops.MapPost("/announcements", async (AnnReq r, AppDb db, ClaimsPrincipal p) =>
+        ops.MapPost("/announcements", async (AnnReq r, AppDb db, ClaimsPrincipal p, NotificationService notifications) =>
         {
             if (string.IsNullOrWhiteSpace(r.Title) || string.IsNullOrWhiteSpace(r.Body)) return Bad("Title and message are required");
             var isStaff = p.RoleName() == Roles.Staff;
@@ -584,6 +599,15 @@ public static class Api
                 Title = r.Title.Trim(), Body = r.Body.Trim(),
             });
             await db.SaveChangesAsync();
+            var recipients = r.ClassroomId is Guid classroomId
+                ? await db.StaffClassrooms.Where(s => s.ClassroomId == classroomId).Select(s => s.UserId)
+                    .Concat(db.ChildGuardians.Where(g => g.Child.ClassroomId == classroomId && g.Guardian.UserId != null)
+                        .Select(g => g.Guardian.UserId!.Value)).Distinct().ToListAsync()
+                : await db.Users.Where(u => u.CenterId == p.Cid() && u.Id != p.Uid() && u.IsActive)
+                    .Select(u => u.Id).ToListAsync();
+            foreach (var recipientId in recipients)
+                await notifications.NotifyAsync(p.Cid()!.Value, recipientId, "announcement", r.Title.Trim(),
+                    r.Body.Trim(), "/announcements");
             return Results.NoContent();
         });
 
@@ -653,7 +677,13 @@ public static class Api
             }
 
             return await users.OrderBy(u => u.FullName)
-                .Select(u => new { u.Id, u.FullName, u.Role })
+                .Select(u => new
+                {
+                    u.Id, u.FullName, u.Role,
+                    ChildCount = u.Role == Roles.Parent
+                        ? db.ChildGuardians.Count(g => g.Guardian.UserId == u.Id)
+                        : 0,
+                })
                 .ToListAsync();
         });
 
@@ -700,7 +730,7 @@ public static class Api
             });
         });
 
-        any.MapPost("/messages", async (MessageReq r, AppDb db, ClaimsPrincipal p) =>
+        any.MapPost("/messages", async (MessageReq r, AppDb db, ClaimsPrincipal p, NotificationService notifications) =>
         {
             if (string.IsNullOrWhiteSpace(r.Body) || string.IsNullOrWhiteSpace(r.Subject))
                 return Bad("Subject and message are required");
@@ -715,21 +745,42 @@ public static class Api
             if (senderRole == Roles.Parent && recipient.Role is Roles.Admin or Roles.Staff)
             {
                 parentId = senderId; staffId = recipient.Id;
-                if (recipient.Role == Roles.Staff && r.ChildId is not Guid childId)
-                    return Bad("Choose a child when messaging classroom staff");
-                if (recipient.Role == Roles.Staff && !await db.StaffClassrooms.AnyAsync(s =>
-                        s.UserId == recipient.Id && db.Children.Any(c => c.Id == r.ChildId && c.ClassroomId == s.ClassroomId)))
-                    return Results.Forbid();
+                if (recipient.Role == Roles.Staff)
+                {
+                    var parentChildren = db.ChildGuardians
+                        .Where(g => g.Guardian.UserId == senderId)
+                        .Select(g => g.ChildId);
+                    if (r.ChildId is Guid childId)
+                    {
+                        if (!await db.StaffClassrooms.AnyAsync(s =>
+                                s.UserId == recipient.Id && db.Children.Any(c =>
+                                    c.Id == childId && c.ClassroomId == s.ClassroomId)))
+                            return Results.Forbid();
+                    }
+                    else if (!await parentChildren.Skip(1).AnyAsync() ||
+                             !await db.StaffClassrooms.AnyAsync(s =>
+                                 s.UserId == recipient.Id && db.Children.Any(c =>
+                                     parentChildren.Contains(c.Id) && c.ClassroomId == s.ClassroomId)))
+                        return Bad("Choose a child when messaging classroom staff");
+                }
             }
             else if (senderRole is Roles.Admin or Roles.Staff && recipient.Role == Roles.Parent)
             {
                 parentId = recipient.Id; staffId = senderId;
                 if (senderRole == Roles.Staff)
                 {
-                    if (r.ChildId is not Guid childId ||
-                        !await db.StaffClassrooms.AnyAsync(s =>
-                            s.UserId == senderId && db.Children.Any(c => c.Id == childId && c.ClassroomId == s.ClassroomId)))
-                        return Results.Forbid();
+                    var parentChildren = db.ChildGuardians
+                            .Where(g => g.Guardian.UserId == recipient.Id)
+                            .Select(g => g.ChildId);
+                    if (r.ChildId is not Guid childId &&
+                            (!await parentChildren.Skip(1).AnyAsync() ||
+                             !await db.StaffClassrooms.AnyAsync(s =>
+                                 s.UserId == senderId && db.Children.Any(c =>
+                                     parentChildren.Contains(c.Id) && c.ClassroomId == s.ClassroomId))))
+                            return Bad("Choose a child when messaging a parent");
+                    if (r.ChildId is Guid staffChildId && !await db.StaffClassrooms.AnyAsync(s =>
+                            s.UserId == senderId && db.Children.Any(c => c.Id == staffChildId && c.ClassroomId == s.ClassroomId)))
+                            return Results.Forbid();
                 }
             }
             else return Results.Forbid();
@@ -746,10 +797,13 @@ public static class Api
             conversation.Messages.Add(new Message { SenderId = senderId, Body = r.Body.Trim() });
             db.Conversations.Add(conversation);
             await db.SaveChangesAsync();
+            await notifications.NotifyAsync(conversation.CenterId, recipient.Id, "message",
+                $"New message from {p.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value ?? "a daycare user"}",
+                r.Body.Trim(), "/messages");
             return Results.Ok(new { conversation.Id });
         });
 
-        any.MapPost("/messages/{id:guid}/reply", async (Guid id, ReplyReq r, AppDb db, ClaimsPrincipal p) =>
+        any.MapPost("/messages/{id:guid}/reply", async (Guid id, ReplyReq r, AppDb db, ClaimsPrincipal p, NotificationService notifications) =>
         {
             if (string.IsNullOrWhiteSpace(r.Body)) return Bad("Message is required");
             var uid = p.Uid();
@@ -764,6 +818,10 @@ public static class Api
             });
             conversation.UpdatedAt = DateTime.UtcNow;
             await db.SaveChangesAsync();
+            var recipientId = conversation.ParentUserId == uid ? conversation.StaffUserId : conversation.ParentUserId;
+            await notifications.NotifyAsync(conversation.CenterId, recipientId, "message",
+                $"New reply from {p.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value ?? "a daycare user"}",
+                r.Body.Trim(), "/messages");
             return Results.NoContent();
         });
 

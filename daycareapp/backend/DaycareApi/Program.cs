@@ -11,9 +11,22 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddDbContext<AppDb>(o => o.UseNpgsql(cfg.GetConnectionString("Default")));
 builder.Services.AddSingleton<TokenService>();
 builder.Services.AddSingleton<IEmailSender, SmtpEmailSender>();
+builder.Services.AddSignalR();
+builder.Services.AddScoped<NotificationService>();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(o =>
 {
+    o.Events = new JwtBearerEvents
+    {
+        OnMessageReceived = context =>
+        {
+            var accessToken = context.Request.Query["access_token"];
+            if (!string.IsNullOrEmpty(accessToken) &&
+                context.HttpContext.Request.Path.StartsWithSegments("/hubs/notifications"))
+                context.Token = accessToken;
+            return Task.CompletedTask;
+        },
+    };
     o.TokenValidationParameters = new TokenValidationParameters
     {
         ValidateIssuer = true,
@@ -26,7 +39,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
 });
 builder.Services.AddAuthorization();
 builder.Services.AddCors(o => o.AddDefaultPolicy(p =>
-    p.WithOrigins(cfg["Cors:Origin"]!).AllowAnyHeader().AllowAnyMethod()));
+    p.WithOrigins(cfg["Cors:Origin"]!).AllowAnyHeader().AllowAnyMethod().AllowCredentials()));
 
 var app = builder.Build();
 
@@ -77,6 +90,7 @@ using (var scope = app.Services.CreateScope())
 app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
+app.MapHub<NotificationHub>("/hubs/notifications").RequireAuthorization();
 app.MapAuthApi();
 app.MapApi();
 app.Run();

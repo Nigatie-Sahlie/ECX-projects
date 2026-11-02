@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { api, fmtDate, fmtTime } from '../api'
 import { useAuth } from '../App.jsx'
 import { Empty, Field, Modal, Notice, useAction, useLoad } from '../ui.jsx'
@@ -17,6 +17,18 @@ export default function Messages() {
   const current = conversations?.find((x) => x.id === selected)
   const childItems = children?.items ?? children ?? []
   const selectedRecipient = recipients?.find((x) => x.id === compose.recipientId)
+  const childRequired = user.role === 'staff' && selectedRecipient?.role === 'parent' &&
+    selectedRecipient.childCount <= 1
+
+  useEffect(() => {
+    const refresh = (event) => {
+      if (event.detail?.type !== 'message') return
+      reload()
+      if (selected) open(selected)
+    }
+    window.addEventListener('app-notification', refresh)
+    return () => window.removeEventListener('app-notification', refresh)
+  }, [reload, selected])
 
   const open = async (id) => {
     setSelected(id)
@@ -92,13 +104,14 @@ export default function Messages() {
               {recipients?.map((recipient) => <option key={recipient.id} value={recipient.id}>{recipient.fullName} ({recipient.role})</option>)}
             </select>
           </Field>
-          <Field label="Related child (optional)">
-            <select value={compose.childId} onChange={(e) => setCompose({ ...compose, childId: e.target.value })}>
+          <Field label={`Related child${childRequired ? '' : ' (optional)'}`}>
+            <select required={childRequired} value={compose.childId} onChange={(e) => setCompose({ ...compose, childId: e.target.value })}>
               <option value="">General message</option>
               {childItems.map((child) => <option key={child.id} value={child.id}>{child.firstName} {child.lastName}</option>)}
             </select>
           </Field>
-          {user.role === 'parent' && selectedRecipient?.role === 'staff' && <p className="muted">Choose the child whose classroom you want to contact.</p>}
+          {childRequired && <p className="muted">Choose the child whose classroom you want to contact.</p>}
+          {user.role === 'parent' && selectedRecipient?.role === 'staff' && <p className="muted">Choose a child to link this message to, or leave it as a general message.</p>}
           <Field label="Subject"><input required value={compose.subject} onChange={(e) => setCompose({ ...compose, subject: e.target.value })} /></Field>
           <Field label="Message"><textarea required rows={5} value={compose.body} onChange={(e) => setCompose({ ...compose, body: e.target.value })} /></Field>
           <div className="actions"><button className="btn">Send message</button><button type="button" className="btn ghost" onClick={() => setShowCompose(false)}>Cancel</button></div>

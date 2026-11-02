@@ -4,7 +4,6 @@ services:
     environment:
       POSTGRES_DB: daycareapp
       POSTGRES_USER: postgres
-      # Under postgres.environment:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -31,18 +30,19 @@ services:
     environment:
       ASPNETCORE_URLS: http://+:5000
       ASPNETCORE_ENVIRONMENT: Development
-      # Under api.environment:
       ConnectionStrings__Default: "Host=postgres;Port=5432;Database=daycareapp;Username=postgres;Password=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}"
       Jwt__Key: ${JWT_KEY:?Set JWT_KEY in .env}
-      Jwt__Issuer: daycareapp
-      Jwt__Hours: "8"
-      Cors__Origin: http://localhost:5173
-      Frontend__ResetPasswordUrl: http://localhost:5173/reset-password
-      Smtp__Enabled: "true"
-      Smtp__Host: mailpit
-      Smtp__Port: "1025"
-      Smtp__UseSsl: "false"
-      Smtp__From: no-reply@daycareapp.local
+      Jwt__Issuer: ${JWT_ISSUER:-daycareapp}
+      Jwt__Hours: ${JWT_HOURS:-8}
+      Cors__Origin: ${APP_ORIGIN:-http://localhost:5173}
+      Frontend__ResetPasswordUrl: ${RESET_PASSWORD_URL:-http://localhost:5173/reset-password}
+      Smtp__Enabled: ${SMTP_ENABLED:-true}
+      Smtp__Host: ${SMTP_HOST:-mailpit}
+      Smtp__Port: ${SMTP_PORT:-1025}
+      Smtp__UseSsl: ${SMTP_USE_SSL:-false}
+      Smtp__From: ${SMTP_FROM:-no-reply@daycareapp.local}
+      Smtp__Username: ${SMTP_USERNAME:-}
+      Smtp__Password: ${SMTP_PASSWORD:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -59,3 +59,4 @@ services:
 
 volumes:
   postgres_data:
+    name: daycareapp_docker_postgres_data

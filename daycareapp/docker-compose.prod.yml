@@ -91,6 +91,7 @@ services:
 
 volumes:
   postgres_data:
+    name: daycareapp_production_postgres_data
 
 networks:
   backend:

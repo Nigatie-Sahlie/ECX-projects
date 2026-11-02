@@ -56,6 +56,9 @@ public sealed class FakeEmailSender : IEmailSender
         return Task.CompletedTask;
     }
 
+    public Task SendNotificationAsync(string recipient, string subject, string body, CancellationToken cancellationToken) =>
+        Task.CompletedTask;
+
     public void Clear()
     {
         Recipient = null;
