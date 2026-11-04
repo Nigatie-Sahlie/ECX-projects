@@ -4,7 +4,7 @@ import { useAuth } from '../App.jsx'
 import { Empty, Field, Modal, Notice, useAction, useLoad } from '../ui.jsx'
 
 export default function Messages() {
-  const { user } = useAuth()
+  const { user, markMessageNotificationsRead } = useAuth()
   const [conversations, reload, loadErr] = useLoad(() => api('/messages'))
   const [recipients] = useLoad(() => api('/messaging/recipients'))
   const [children] = useLoad(() => api('/children'))
@@ -33,6 +33,8 @@ export default function Messages() {
   const open = async (id) => {
     setSelected(id)
     setDetail(await api(`/messages/${id}`))
+    await markMessageNotificationsRead()
+    reload()
   }
   const send = async (e) => {
     e.preventDefault()

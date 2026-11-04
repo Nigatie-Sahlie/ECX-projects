@@ -152,6 +152,44 @@ public class Announcement
     public DateTime PublishedAt { get; set; } = DateTime.UtcNow;
 }
 
+public class ScheduleItem
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid CenterId { get; set; }
+    public Guid? ClassroomId { get; set; }
+    public Classroom? Classroom { get; set; }
+    public string Title { get; set; } = "";
+    public string? Description { get; set; }
+    public string Recurrence { get; set; } = "daily"; // daily | weekly | monthly
+    public DateOnly StartDate { get; set; }
+    public DateOnly? EndDate { get; set; }
+    public TimeOnly StartTime { get; set; }
+    public TimeOnly? EndTime { get; set; }
+    public int? DayOfWeek { get; set; } // Sunday = 0 through Saturday = 6
+    public int? DayOfMonth { get; set; } // 1 through 31
+    public Guid CreatedBy { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+}
+
+public class EventItem
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid CenterId { get; set; }
+    public Guid? ClassroomId { get; set; }
+    public Classroom? Classroom { get; set; }
+    public string Title { get; set; } = "";
+    public string? Description { get; set; }
+    public string Recurrence { get; set; } = "one_time"; // one_time | daily | weekly | monthly
+    public DateOnly StartDate { get; set; }
+    public DateOnly? EndDate { get; set; }
+    public TimeOnly? StartTime { get; set; }
+    public TimeOnly? EndTime { get; set; }
+    public int? DayOfWeek { get; set; }
+    public int? DayOfMonth { get; set; }
+    public Guid CreatedBy { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+}
+
 public class Conversation
 {
     public Guid Id { get; set; } = Guid.NewGuid();

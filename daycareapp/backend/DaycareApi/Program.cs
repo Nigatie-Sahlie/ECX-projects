@@ -13,6 +13,7 @@ builder.Services.AddSingleton<TokenService>();
 builder.Services.AddSingleton<IEmailSender, SmtpEmailSender>();
 builder.Services.AddSignalR();
 builder.Services.AddScoped<NotificationService>();
+builder.Services.AddHostedService<ExpiredEventCleanupService>();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(o =>
 {

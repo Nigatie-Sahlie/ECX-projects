@@ -643,6 +643,187 @@ public static class Api
             return Results.NoContent();
         });
 
+        // ---------- schedules ----------
+        any.MapGet("/schedules", async (AppDb db, ClaimsPrincipal p) =>
+        {
+            var query = db.Schedules.AsQueryable();
+            if (p.RoleName() == Roles.Staff)
+            {
+                var classrooms = db.StaffClassrooms.Where(s => s.UserId == p.Uid()).Select(s => s.ClassroomId);
+                query = query.Where(s => s.ClassroomId == null || classrooms.Contains(s.ClassroomId.Value));
+            }
+            else if (p.RoleName() == Roles.Parent)
+            {
+                var classrooms = db.ChildGuardians.Where(g => g.Guardian.UserId == p.Uid())
+                    .Select(g => g.Child.ClassroomId);
+                query = query.Where(s => s.ClassroomId == null || classrooms.Contains(s.ClassroomId.Value));
+            }
+
+            return await query.OrderBy(s => s.StartDate).ThenBy(s => s.StartTime)
+                .Select(s => new
+                {
+                    s.Id, s.Title, s.Description, s.Recurrence, s.StartDate, s.EndDate,
+                    s.StartTime, s.EndTime, s.DayOfWeek, s.DayOfMonth, s.ClassroomId,
+                    Classroom = s.Classroom == null ? null : s.Classroom.Name,
+                }).ToListAsync();
+        });
+
+        ops.MapPost("/schedules", async (ScheduleReq r, AppDb db, ClaimsPrincipal p, NotificationService notifications) =>
+        {
+            if (!ValidSchedule(r, out var error)) return Bad(error);
+            if (r.ClassroomId is Guid classroomId)
+            {
+                if (!await db.Classrooms.AnyAsync(c => c.Id == classroomId)) return Results.NotFound();
+                if (p.RoleName() == Roles.Staff &&
+                    !await db.StaffClassrooms.AnyAsync(s => s.UserId == p.Uid() && s.ClassroomId == classroomId))
+                    return Results.Forbid();
+            }
+            var item = new ScheduleItem
+            {
+                CenterId = p.Cid()!.Value, CreatedBy = p.Uid(), Title = r.Title.Trim(),
+                Description = r.Description?.Trim(), Recurrence = r.Recurrence.ToLowerInvariant(),
+                StartDate = r.StartDate, EndDate = r.EndDate, StartTime = r.StartTime,
+                EndTime = r.EndTime, DayOfWeek = r.DayOfWeek, DayOfMonth = r.DayOfMonth,
+                ClassroomId = r.ClassroomId,
+            };
+            db.Schedules.Add(item);
+            await db.SaveChangesAsync();
+            var recipients = await NotificationRecipients(db, item.CenterId, item.ClassroomId, p.Uid());
+            foreach (var recipientId in recipients)
+                await notifications.NotifyAsync(item.CenterId, recipientId, "schedule", $"New schedule: {item.Title}",
+                    item.Description ?? "A new schedule item was added.", "/schedule");
+            return Results.Ok(new { item.Id });
+        });
+
+        ops.MapPut("/schedules/{id:guid}", async (Guid id, ScheduleReq r, AppDb db, ClaimsPrincipal p) =>
+        {
+            if (!ValidSchedule(r, out var error)) return Bad(error);
+            var item = await db.Schedules.FirstOrDefaultAsync(s => s.Id == id);
+            if (item is null) return Results.NotFound();
+            if (p.RoleName() == Roles.Staff &&
+                (item.CreatedBy != p.Uid() ||
+                 item.ClassroomId is not Guid oldClassroom ||
+                 !await db.StaffClassrooms.AnyAsync(s => s.UserId == p.Uid() && s.ClassroomId == oldClassroom)))
+                return Results.Forbid();
+            if (r.ClassroomId is Guid classroomId)
+            {
+                if (!await db.Classrooms.AnyAsync(c => c.Id == classroomId)) return Results.NotFound();
+                if (p.RoleName() == Roles.Staff &&
+                    !await db.StaffClassrooms.AnyAsync(s => s.UserId == p.Uid() && s.ClassroomId == classroomId))
+                    return Results.Forbid();
+            }
+            item.Title = r.Title.Trim();
+            item.Description = r.Description?.Trim();
+            item.Recurrence = r.Recurrence.ToLowerInvariant();
+            item.StartDate = r.StartDate;
+            item.EndDate = r.EndDate;
+            item.StartTime = r.StartTime;
+            item.EndTime = r.EndTime;
+            item.DayOfWeek = r.DayOfWeek;
+            item.DayOfMonth = r.DayOfMonth;
+            item.ClassroomId = r.ClassroomId;
+            await db.SaveChangesAsync();
+            return Results.NoContent();
+        });
+
+        ops.MapDelete("/schedules/{id:guid}", async (Guid id, AppDb db, ClaimsPrincipal p) =>
+        {
+            var item = await db.Schedules.FirstOrDefaultAsync(s => s.Id == id);
+            if (item is null) return Results.NotFound();
+            if (p.RoleName() == Roles.Staff && item.CreatedBy != p.Uid()) return Results.Forbid();
+            db.Schedules.Remove(item);
+            await db.SaveChangesAsync();
+            return Results.NoContent();
+        });
+
+        // ---------- events ----------
+        any.MapGet("/events", async (AppDb db, ClaimsPrincipal p) =>
+        {
+            var query = db.Events.AsQueryable();
+            if (p.RoleName() == Roles.Staff)
+            {
+                var classrooms = db.StaffClassrooms.Where(s => s.UserId == p.Uid()).Select(s => s.ClassroomId);
+                query = query.Where(e => e.ClassroomId == null || classrooms.Contains(e.ClassroomId.Value));
+            }
+            else if (p.RoleName() == Roles.Parent)
+            {
+                var classrooms = db.ChildGuardians.Where(g => g.Guardian.UserId == p.Uid())
+                    .Select(g => g.Child.ClassroomId);
+                query = query.Where(e => e.ClassroomId == null || classrooms.Contains(e.ClassroomId.Value));
+            }
+
+            return await query.OrderBy(e => e.StartDate).ThenBy(e => e.StartTime)
+                .Select(e => new
+                {
+                    e.Id, e.Title, e.Description, e.Recurrence, e.StartDate, e.EndDate,
+                    e.StartTime, e.EndTime, e.DayOfWeek, e.DayOfMonth, e.ClassroomId,
+                    Classroom = e.Classroom == null ? null : e.Classroom.Name,
+                }).ToListAsync();
+        });
+
+        ops.MapPost("/events", async (EventReq r, AppDb db, ClaimsPrincipal p, NotificationService notifications) =>
+        {
+            if (!ValidEvent(r, out var error)) return Bad(error);
+            if (r.ClassroomId is Guid classroomId)
+            {
+                if (!await db.Classrooms.AnyAsync(c => c.Id == classroomId)) return Results.NotFound();
+                if (p.RoleName() == Roles.Staff &&
+                    !await db.StaffClassrooms.AnyAsync(s => s.UserId == p.Uid() && s.ClassroomId == classroomId))
+                    return Results.Forbid();
+            }
+            var item = new EventItem
+            {
+                CenterId = p.Cid()!.Value, CreatedBy = p.Uid(), Title = r.Title.Trim(),
+                Description = r.Description?.Trim(), Recurrence = r.Recurrence.ToLowerInvariant(),
+                StartDate = r.StartDate, EndDate = r.EndDate, StartTime = r.StartTime,
+                EndTime = r.EndTime, DayOfWeek = r.DayOfWeek, DayOfMonth = r.DayOfMonth,
+                ClassroomId = r.ClassroomId,
+            };
+            db.Events.Add(item);
+            await db.SaveChangesAsync();
+            var recipients = await NotificationRecipients(db, item.CenterId, item.ClassroomId, p.Uid());
+            foreach (var recipientId in recipients)
+                await notifications.NotifyAsync(item.CenterId, recipientId, "event", $"New event: {item.Title}",
+                    item.Description ?? "A new event was added.", "/events");
+            return Results.Ok(new { item.Id });
+        });
+
+        ops.MapPut("/events/{id:guid}", async (Guid id, EventReq r, AppDb db, ClaimsPrincipal p) =>
+        {
+            if (!ValidEvent(r, out var error)) return Bad(error);
+            var item = await db.Events.FirstOrDefaultAsync(e => e.Id == id);
+            if (item is null) return Results.NotFound();
+            if (p.RoleName() == Roles.Staff && item.CreatedBy != p.Uid()) return Results.Forbid();
+            if (r.ClassroomId is Guid classroomId &&
+                !await db.Classrooms.AnyAsync(c => c.Id == classroomId))
+                return Results.NotFound();
+            if (p.RoleName() == Roles.Staff && r.ClassroomId is Guid targetClassroom &&
+                !await db.StaffClassrooms.AnyAsync(s => s.UserId == p.Uid() && s.ClassroomId == targetClassroom))
+                return Results.Forbid();
+            item.Title = r.Title.Trim();
+            item.Description = r.Description?.Trim();
+            item.Recurrence = r.Recurrence.ToLowerInvariant();
+            item.StartDate = r.StartDate;
+            item.EndDate = r.EndDate;
+            item.StartTime = r.StartTime;
+            item.EndTime = r.EndTime;
+            item.DayOfWeek = r.DayOfWeek;
+            item.DayOfMonth = r.DayOfMonth;
+            item.ClassroomId = r.ClassroomId;
+            await db.SaveChangesAsync();
+            return Results.NoContent();
+        });
+
+        ops.MapDelete("/events/{id:guid}", async (Guid id, AppDb db, ClaimsPrincipal p) =>
+        {
+            var item = await db.Events.FirstOrDefaultAsync(e => e.Id == id);
+            if (item is null) return Results.NotFound();
+            if (p.RoleName() == Roles.Staff && item.CreatedBy != p.Uid()) return Results.Forbid();
+            db.Events.Remove(item);
+            await db.SaveChangesAsync();
+            return Results.NoContent();
+        });
+
         // ---------- private messages ----------
         any.MapGet("/messaging/recipients", async (AppDb db, ClaimsPrincipal p) =>
         {
@@ -763,8 +944,13 @@ public static class Api
                                      parentChildren.Contains(c.Id) && c.ClassroomId == s.ClassroomId)))
                         return Bad("Choose a child when messaging classroom staff");
                 }
+
             }
-            else if (senderRole is Roles.Admin or Roles.Staff && recipient.Role == Roles.Parent)
+            else if (senderRole == Roles.Admin && recipient.Role == Roles.Staff)
+            {
+                parentId = senderId; staffId = recipient.Id;
+            }
+            else if (senderRole == Roles.Staff && recipient.Role is Roles.Parent or Roles.Admin)
             {
                 parentId = recipient.Id; staffId = senderId;
                 if (senderRole == Roles.Staff)
@@ -772,20 +958,20 @@ public static class Api
                     var parentChildren = db.ChildGuardians
                             .Where(g => g.Guardian.UserId == recipient.Id)
                             .Select(g => g.ChildId);
-                    if (r.ChildId is not Guid childId &&
-                            (!await parentChildren.Skip(1).AnyAsync() ||
-                             !await db.StaffClassrooms.AnyAsync(s =>
-                                 s.UserId == senderId && db.Children.Any(c =>
-                                     parentChildren.Contains(c.Id) && c.ClassroomId == s.ClassroomId))))
-                            return Bad("Choose a child when messaging a parent");
-                    if (r.ChildId is Guid staffChildId && !await db.StaffClassrooms.AnyAsync(s =>
-                            s.UserId == senderId && db.Children.Any(c => c.Id == staffChildId && c.ClassroomId == s.ClassroomId)))
-                            return Results.Forbid();
+                    if (recipient.Role == Roles.Parent && r.ChildId is not Guid childId &&
+                                (!await parentChildren.Skip(1).AnyAsync() ||
+                                 !await db.StaffClassrooms.AnyAsync(s =>
+                                     s.UserId == senderId && db.Children.Any(c =>
+                                         parentChildren.Contains(c.Id) && c.ClassroomId == s.ClassroomId))))
+                                return Bad("Choose a child when messaging a parent");
+                    if (recipient.Role == Roles.Parent && r.ChildId is Guid staffChildId && !await db.StaffClassrooms.AnyAsync(s =>
+                                s.UserId == senderId && db.Children.Any(c => c.Id == staffChildId && c.ClassroomId == s.ClassroomId)))
+                                return Results.Forbid();
                 }
             }
             else return Results.Forbid();
 
-            if (r.ChildId is Guid selectedChild &&
+            if (recipient.Role == Roles.Parent && r.ChildId is Guid selectedChild &&
                 !await db.ChildGuardians.AnyAsync(g => g.ChildId == selectedChild && g.Guardian.UserId == parentId))
                 return Bad("That child is not linked to the parent");
 
@@ -867,6 +1053,58 @@ public static class Api
             });
         });
     }
+
+    static bool ValidSchedule(ScheduleReq r, out string error)
+    {
+        error = "";
+        if (string.IsNullOrWhiteSpace(r.Title)) { error = "Schedule title is required"; return false; }
+        if (r.EndDate is DateOnly end && end < r.StartDate) { error = "End date cannot be before start date"; return false; }
+        if (r.EndTime is TimeOnly endTime && endTime <= r.StartTime) { error = "End time must be after start time"; return false; }
+        if (r.Recurrence.ToLowerInvariant() is not ("daily" or "weekly" or "monthly"))
+        { error = "Choose daily, weekly, or monthly recurrence"; return false; }
+        if (r.Recurrence.Equals("weekly", StringComparison.OrdinalIgnoreCase) && r.DayOfWeek is not >= 0 and <= 6)
+        { error = "Choose a day of the week"; return false; }
+        if (r.Recurrence.Equals("monthly", StringComparison.OrdinalIgnoreCase) && r.DayOfMonth is not >= 1 and <= 31)
+        { error = "Choose a day of the month from 1 to 31"; return false; }
+        return true;
+    }
+
+    static bool ValidEvent(EventReq r, out string error)
+    {
+        error = "";
+        if (string.IsNullOrWhiteSpace(r.Title)) { error = "Event title is required"; return false; }
+        if (r.EndDate is DateOnly end && end < r.StartDate) { error = "End date cannot be before start date"; return false; }
+        if (r.StartTime is TimeOnly start && r.EndTime is TimeOnly finish && finish <= start)
+        { error = "End time must be after start time"; return false; }
+        if (r.Recurrence.ToLowerInvariant() is not ("one_time" or "daily" or "weekly" or "monthly"))
+        { error = "Choose one-time, daily, weekly, or monthly recurrence"; return false; }
+        if (r.Recurrence.Equals("weekly", StringComparison.OrdinalIgnoreCase) && r.DayOfWeek is not >= 0 and <= 6)
+        { error = "Choose a day of the week"; return false; }
+        if (r.Recurrence.Equals("monthly", StringComparison.OrdinalIgnoreCase) && r.DayOfMonth is not >= 1 and <= 31)
+        { error = "Choose a day of the month from 1 to 31"; return false; }
+        return true;
+    }
+
+    static async Task<List<Guid>> NotificationRecipients(
+        AppDb db, Guid centerId, Guid? classroomId, Guid excludeUserId)
+    {
+        if (classroomId is Guid classroom)
+        {
+            return await db.StaffClassrooms.Where(s => s.ClassroomId == classroom)
+                .Select(s => s.UserId)
+                .Concat(db.ChildGuardians
+                    .Where(g => g.Child.ClassroomId == classroom && g.Guardian.UserId != null)
+                    .Select(g => g.Guardian.UserId!.Value))
+                .Where(id => id != excludeUserId)
+                .Distinct()
+                .ToListAsync();
+        }
+
+        return await db.Users
+            .Where(u => u.CenterId == centerId && u.Id != excludeUserId && u.IsActive)
+            .Select(u => u.Id)
+            .ToListAsync();
+    }
 }
 
 // ---------- request bodies ----------
@@ -893,5 +1131,11 @@ public record CheckOutReq(Guid? PickedUpByGuardianId);
 public record NewEntry(Guid ChildId, DateOnly Date, string EntryType, string? Details, DateTime? OccurredAt);
 public record ReportReq(string? GeneralNote, bool Publish);
 public record AnnReq(string Title, string Body, Guid? ClassroomId);
+public record ScheduleReq(
+    string Title, string? Description, string Recurrence, DateOnly StartDate, DateOnly? EndDate,
+    TimeOnly StartTime, TimeOnly? EndTime, int? DayOfWeek, int? DayOfMonth, Guid? ClassroomId);
+public record EventReq(
+    string Title, string? Description, string Recurrence, DateOnly StartDate, DateOnly? EndDate,
+    TimeOnly? StartTime, TimeOnly? EndTime, int? DayOfWeek, int? DayOfMonth, Guid? ClassroomId);
 public record MessageReq(Guid RecipientId, Guid? ChildId, string? Subject, string? Body);
 public record ReplyReq(string? Body);

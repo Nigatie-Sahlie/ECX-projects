@@ -104,6 +104,61 @@ public sealed class NotificationHub : Hub
 {
 }
 
+public sealed class ExpiredEventCleanupService(
+    IServiceScopeFactory scopeFactory,
+    ILogger<ExpiredEventCleanupService> logger) : BackgroundService
+{
+    static readonly TimeZoneInfo LocalTimeZone = FindLocalTimeZone();
+
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            try
+            {
+                using var scope = scopeFactory.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<AppDb>();
+                var now = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, LocalTimeZone);
+                var events = await db.Events.IgnoreQueryFilters().ToListAsync(stoppingToken);
+                var expired = events.Where(e => HasExpired(e, now)).ToList();
+                if (expired.Count > 0)
+                {
+                    db.Events.RemoveRange(expired);
+                    await db.SaveChangesAsync(stoppingToken);
+                    logger.LogInformation("Removed {Count} expired events.", expired.Count);
+                }
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                break;
+            }
+            catch (Exception exception)
+            {
+                logger.LogError(exception, "Expired event cleanup failed.");
+            }
+
+            await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken);
+        }
+    }
+
+    static bool HasExpired(EventItem item, DateTime now)
+    {
+        if (item.Recurrence != "one_time" && item.EndDate is null) return false;
+        var expirationDate = item.EndDate ?? item.StartDate;
+        if (now.Date > expirationDate.ToDateTime(TimeOnly.MinValue).Date) return true;
+        if (now.Date < expirationDate.ToDateTime(TimeOnly.MinValue).Date) return false;
+
+        var expirationTime = item.EndTime ?? item.StartTime ?? TimeOnly.MaxValue;
+        return now.TimeOfDay > expirationTime.ToTimeSpan();
+    }
+
+    static TimeZoneInfo FindLocalTimeZone()
+    {
+        try { return TimeZoneInfo.FindSystemTimeZoneById("Africa/Addis_Ababa"); }
+        catch (TimeZoneNotFoundException) { return TimeZoneInfo.CreateCustomTimeZone("EAT", TimeSpan.FromHours(3), "East Africa Time", "East Africa Time"); }
+    }
+}
+
 public sealed class ApiExceptionMiddleware(RequestDelegate next, ILogger<ApiExceptionMiddleware> logger)
 {
     public async Task InvokeAsync(HttpContext context)

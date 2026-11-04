@@ -22,6 +22,8 @@ public class AppDb(DbContextOptions<AppDb> options, IHttpContextAccessor http) :
     public DbSet<DailyReport> DailyReports => Set<DailyReport>();
     public DbSet<DailyReportEntry> Entries => Set<DailyReportEntry>();
     public DbSet<Announcement> Announcements => Set<Announcement>();
+    public DbSet<ScheduleItem> Schedules => Set<ScheduleItem>();
+    public DbSet<EventItem> Events => Set<EventItem>();
     public DbSet<Conversation> Conversations => Set<Conversation>();
     public DbSet<Message> Messages => Set<Message>();
     public DbSet<Notification> Notifications => Set<Notification>();
@@ -44,6 +46,8 @@ public class AppDb(DbContextOptions<AppDb> options, IHttpContextAccessor http) :
         b.Entity<Attendance>().HasIndex(x => new { x.CenterId, x.CheckInAt });
         b.Entity<Attendance>().HasIndex(x => new { x.ChildId, x.CheckInAt });
         b.Entity<Announcement>().HasIndex(x => new { x.CenterId, x.PublishedAt });
+        b.Entity<ScheduleItem>().HasIndex(x => new { x.CenterId, x.StartDate, x.Recurrence });
+        b.Entity<EventItem>().HasIndex(x => new { x.CenterId, x.StartDate, x.Recurrence });
         b.Entity<ChildGuardian>().HasIndex(x => x.GuardianId);
         b.Entity<Conversation>().HasIndex(x => new { x.CenterId, x.UpdatedAt });
         b.Entity<Message>().HasIndex(x => new { x.ConversationId, x.SentAt });
@@ -71,6 +75,8 @@ public class AppDb(DbContextOptions<AppDb> options, IHttpContextAccessor http) :
         b.Entity<Attendance>().HasQueryFilter(x => x.CenterId == CurrentCenterId);
         b.Entity<DailyReport>().HasQueryFilter(x => x.CenterId == CurrentCenterId);
         b.Entity<Announcement>().HasQueryFilter(x => x.CenterId == CurrentCenterId);
+        b.Entity<ScheduleItem>().HasQueryFilter(x => x.CenterId == CurrentCenterId);
+        b.Entity<EventItem>().HasQueryFilter(x => x.CenterId == CurrentCenterId);
         b.Entity<StaffClassroom>().HasQueryFilter(x => x.Classroom.CenterId == CurrentCenterId);
         b.Entity<ChildGuardian>().HasQueryFilter(x =>
             x.Child.CenterId == CurrentCenterId && x.Guardian.CenterId == CurrentCenterId);

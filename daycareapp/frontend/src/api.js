@@ -20,7 +20,7 @@ export async function api(path, { method = 'GET', body } = {}) {
     let msg = 'Something went wrong. Try again.'
     try {
       const j = await res.json()
-      msg = j.error || j.title || msg
+      msg = j.error || j.title || j.detail || (j.errors && Object.values(j.errors).flat().join(' ')) || msg
     } catch {}
     throw new Error(msg)
   }
@@ -31,7 +31,8 @@ export async function api(path, { method = 'GET', body } = {}) {
 export const today = () => new Date().toLocaleDateString('en-CA')
 
 export const fmtTime = (iso) =>
-  iso ? new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''
+  iso ? new Date(/^\d{2}:\d{2}/.test(iso) ? `1970-01-01T${iso}` : iso)
+    .toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''
 
 export const fmtDate = (d) =>
   new Date(d + (d.length === 10 ? 'T00:00:00' : '')).toLocaleDateString([], {

@@ -334,6 +334,62 @@ namespace DaycareApi.Migrations
                     b.ToTable("Entries");
                 });
 
+            modelBuilder.Entity("DaycareApi.EventItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CenterId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ClassroomId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<int?>("DayOfMonth")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("DayOfWeek")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text");
+
+                    b.Property<DateOnly?>("EndDate")
+                        .HasColumnType("date");
+
+                    b.Property<TimeOnly?>("EndTime")
+                        .HasColumnType("time without time zone");
+
+                    b.Property<string>("Recurrence")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateOnly>("StartDate")
+                        .HasColumnType("date");
+
+                    b.Property<TimeOnly?>("StartTime")
+                        .HasColumnType("time without time zone");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClassroomId");
+
+                    b.HasIndex("CenterId", "StartDate", "Recurrence");
+
+                    b.ToTable("Events");
+                });
+
             modelBuilder.Entity("DaycareApi.Guardian", b =>
                 {
                     b.Property<Guid>("Id")
@@ -467,6 +523,62 @@ namespace DaycareApi.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("PasswordResetTokens");
+                });
+
+            modelBuilder.Entity("DaycareApi.ScheduleItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CenterId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ClassroomId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<int?>("DayOfMonth")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("DayOfWeek")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text");
+
+                    b.Property<DateOnly?>("EndDate")
+                        .HasColumnType("date");
+
+                    b.Property<TimeOnly?>("EndTime")
+                        .HasColumnType("time without time zone");
+
+                    b.Property<string>("Recurrence")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateOnly>("StartDate")
+                        .HasColumnType("date");
+
+                    b.Property<TimeOnly>("StartTime")
+                        .HasColumnType("time without time zone");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClassroomId");
+
+                    b.HasIndex("CenterId", "StartDate", "Recurrence");
+
+                    b.ToTable("Schedules");
                 });
 
             modelBuilder.Entity("DaycareApi.StaffClassroom", b =>
@@ -684,6 +796,16 @@ namespace DaycareApi.Migrations
                     b.Navigation("Report");
                 });
 
+            modelBuilder.Entity("DaycareApi.EventItem", b =>
+                {
+                    b.HasOne("DaycareApi.Classroom", "Classroom")
+                        .WithMany()
+                        .HasForeignKey("ClassroomId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Classroom");
+                });
+
             modelBuilder.Entity("DaycareApi.Guardian", b =>
                 {
                     b.HasOne("DaycareApi.User", null)
@@ -729,6 +851,16 @@ namespace DaycareApi.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("DaycareApi.ScheduleItem", b =>
+                {
+                    b.HasOne("DaycareApi.Classroom", "Classroom")
+                        .WithMany()
+                        .HasForeignKey("ClassroomId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Classroom");
                 });
 
             modelBuilder.Entity("DaycareApi.StaffClassroom", b =>

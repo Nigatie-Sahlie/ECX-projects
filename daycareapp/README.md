@@ -29,7 +29,7 @@ connection and JWT key in a local copy of
 
 ```bash
 cd backend/DaycareApi
-dotnet run
+ASPNETCORE_ENVIRONMENT=Development dotnet run
 ```
 
 In another terminal:
