@@ -17,10 +17,7 @@ services:
       - backend
 
   api:
-    build:
-      context: ./backend/DaycareApi
-      dockerfile: Dockerfile
-    image: daycare-api:production
+    image: ${ECR_REGISTRY:?Set ECR_REGISTRY in .env.production}/daycare-api:${IMAGE_TAG:-latest}
     restart: unless-stopped
     environment:
       ASPNETCORE_URLS: http://+:5000
@@ -46,10 +43,7 @@ services:
       - frontend
 
   migrate:
-    build:
-      context: ./backend/DaycareApi
-      dockerfile: Dockerfile.migrations
-    image: daycare-api-migrations:production
+    image: ${ECR_REGISTRY:?Set ECR_REGISTRY in .env.production}/daycare-api-migrations:${IMAGE_TAG:-latest}
     environment:
       ConnectionStrings__Default: Host=postgres;Port=5432;Database=daycareapp;Username=daycareapp;Password=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.production}
     depends_on:
@@ -75,12 +69,7 @@ services:
       - backend
 
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-      args:
-        VITE_API_URL: ""
-    image: daycare-frontend:production
+    image: ${ECR_REGISTRY:?Set ECR_REGISTRY in .env.production}/daycare-frontend:${IMAGE_TAG:-latest}
     restart: unless-stopped
     ports:
       - "80:80"

@@ -78,12 +78,52 @@ docker compose --env-file .env.production -f docker-compose.prod.yml run --rm mi
 Start the production services:
 
 ```bash
-docker compose --env-file .env.production -f docker-compose.prod.yml up --build -d
+docker compose --env-file .env.production -f docker-compose.prod.yml pull
+docker compose --env-file .env.production -f docker-compose.prod.yml up -d
 ```
 
 The application is available at the configured `APP_ORIGIN` (port 80 by
 default). The production database is stored in the separate
 `daycareapp_production_postgres_data` volume.
+
+### 4. GitHub Actions and Amazon ECR
+
+The repository includes
+[.github/workflows/ci-cd.yml](.github/workflows/ci-cd.yml). Pull requests run
+the backend integration tests against PostgreSQL and build the frontend. A
+push to `main` additionally builds and publishes these images to Amazon ECR:
+
+- `daycare-api`
+- `daycare-api-migrations`
+- `daycare-frontend`
+
+The workflow uses GitHub's OIDC authentication. It does not need a permanent
+AWS access key. Before using it:
+
+1. Create the three ECR repositories in the same AWS region.
+2. Create an IAM OIDC provider for `token.actions.githubusercontent.com`.
+3. Create an IAM role trusted only by this repository's `main` branch, with
+   permission to push images to those three ECR repositories.
+4. Add these GitHub repository settings:
+
+   - **Variable** `AWS_REGION`, for example `eu-central-1`
+   - **Variable** `ECR_REGISTRY`, for example
+     `123456789012.dkr.ecr.eu-central-1.amazonaws.com`
+   - **Secret** `AWS_GITHUB_ACTIONS_ROLE_ARN`, containing the IAM role ARN
+
+The workflow tags each image with the commit SHA and also updates `latest`.
+The SHA tag is safer for deployment because it identifies an exact source
+revision. Set `ECR_REGISTRY` and `IMAGE_TAG` in the production host's
+`.env.production`, then pull the images before starting the stack:
+
+```bash
+docker compose --env-file .env.production -f docker-compose.prod.yml pull
+docker compose --env-file .env.production -f docker-compose.prod.yml run --rm migrate
+docker compose --env-file .env.production -f docker-compose.prod.yml up -d
+```
+
+For the first learning deployment, `IMAGE_TAG=latest` is sufficient. Later,
+replace it with the commit SHA from a successful GitHub Actions run.
 
 For a first deployment, create the initial super-admin once:
 
