@@ -36,8 +36,11 @@ jobs:
           --health-retries 10
     env:
       DAYCARE_TEST_CONNECTION: "Host=localhost;Port=5432;Database=daycare_test;Username=postgres;Password=postgres"
-      Jwt__Key: "ci-test-key-at-least-32-characters-long-123456"
+      ConnectionStrings__Default: "Host=localhost;Port=5432;Database=daycare_test;Username=postgres;Password=postgres"
       Cors__Origin: "http://localhost:5173"
+      Jwt__Key: "ci-test-key-at-least-32-characters-long-123456"
+      Jwt__Issuer: "daycareapp"
+      Jwt__Hours: "8"
     steps:
       - name: Check out repository
         uses: actions/checkout@v4.2.2
