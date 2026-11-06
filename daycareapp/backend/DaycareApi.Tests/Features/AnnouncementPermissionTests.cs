@@ -12,7 +12,7 @@ public sealed class AnnouncementPermissionTests(ApiFactory factory)
     public async Task Staff_can_post_only_to_an_assigned_classroom()
     {
         var admin = new ApiClient(factory.CreateClient());
-        await admin.LoginAs("admin@demo.local", "Admin123!");
+        await admin.LoginAs("admin@demo.local", "123456");
         var rooms = await admin.GetJson("/api/classrooms");
         var assignedRoom = rooms.RootElement.EnumerateArray().First().GetProperty("id").GetGuid();
         var otherRoomResponse = await admin.Post("/api/classrooms",
@@ -22,7 +22,7 @@ public sealed class AnnouncementPermissionTests(ApiFactory factory)
             .RootElement.GetProperty("id").GetGuid();
 
         var staff = new ApiClient(factory.CreateClient());
-        await staff.LoginAs("staff@demo.local", "Staff123!");
+        await staff.LoginAs("staff@demo.local", "123456");
         var allowed = await staff.Post("/api/announcements",
             new { title = "Room update", body = "Today", classroomId = assignedRoom });
         var wrongRoom = await staff.Post("/api/announcements",

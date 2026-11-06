@@ -20,7 +20,7 @@ public sealed class PermissionTests(ApiFactory factory)
     public async Task Parent_cannot_create_classrooms()
     {
         var client = new ApiClient(factory.CreateClient());
-        await client.LoginAs("parent@demo.local", "Parent123!");
+        await client.LoginAs("parent@demo.local", "123456");
 
         var response = await client.Post("/api/classrooms", new
         {
@@ -36,7 +36,7 @@ public sealed class PermissionTests(ApiFactory factory)
     public async Task Staff_can_read_assigned_classrooms_but_cannot_create_them()
     {
         var client = new ApiClient(factory.CreateClient());
-        await client.LoginAs("staff@demo.local", "Staff123!");
+        await client.LoginAs("staff@demo.local", "123456");
 
         var read = await client.Http.GetAsync("/api/classrooms");
         var create = await client.Post("/api/classrooms", new

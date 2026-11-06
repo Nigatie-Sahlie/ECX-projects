@@ -26,8 +26,9 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
             throw new InvalidOperationException(
                 "Integration tests require a dedicated database whose name contains 'test'; " +
                 "the development database is never allowed.");
-
-        builder.UseEnvironment("Testing");
+        
+         builder.UseEnvironment("Development");
+        // builder.UseEnvironment("Testing");
         builder.ConfigureServices(services =>
         {
             services.RemoveAll<DbContextOptions<AppDb>>();
@@ -35,11 +36,6 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
             services.RemoveAll<IEmailSender>();
             services.AddSingleton<IEmailSender>(EmailSender);
 
-            // The application seeds during startup. Ensure only the dedicated test
-            // database has a schema; never drop or clear an existing database.
-            using var provider = services.BuildServiceProvider();
-            using var scope = provider.CreateScope();
-            scope.ServiceProvider.GetRequiredService<AppDb>().Database.EnsureCreated();
         });
     }
 }
