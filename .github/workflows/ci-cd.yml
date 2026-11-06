@@ -35,11 +35,10 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     env:
-      DAYCARE_TEST_CONNECTION: Host=localhost;Port=5432;Database=daycare_test;Username=postgres;Password=postgres
+      DAYCARE_TEST_CONNECTION: "Host=localhost;Port=5432;Database=daycare_test;Username=postgres;Password=postgres"
     steps:
       - name: Check out repository
         uses: actions/checkout@v4.2.2
-
       - name: Set up .NET
         uses: actions/setup-dotnet@v4
         with:
