@@ -89,7 +89,7 @@ default). The production database is stored in the separate
 ### 4. GitHub Actions and Amazon ECR
 
 The repository includes
-[.github/workflows/ci-cd.yml](.github/workflows/ci-cd.yml). Pull requests run
+[.github/workflows/ci-cd.yml](../.github/workflows/ci-cd.yml). Pull requests run
 the backend integration tests against PostgreSQL and build the frontend. A
 push to `main` additionally builds and publishes these images to Amazon ECR:
 

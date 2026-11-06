@@ -38,7 +38,7 @@ jobs:
       DAYCARE_TEST_CONNECTION: Host=localhost;Port=5432;Database=daycare_test;Username=postgres;Password=postgres
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.2.2
 
       - name: Set up .NET
         uses: actions/setup-dotnet@v4
@@ -46,20 +46,20 @@ jobs:
           dotnet-version: 8.x
 
       - name: Restore backend
-        run: dotnet restore backend/DaycareApi.Tests/DaycareApi.Tests.csproj
+        run: dotnet restore daycareapp/backend/DaycareApi.Tests/DaycareApi.Tests.csproj
 
       - name: Test backend
-        run: dotnet test backend/DaycareApi.Tests/DaycareApi.Tests.csproj --configuration Release --no-restore
+        run: dotnet test daycareapp/backend/DaycareApi.Tests/DaycareApi.Tests.csproj --configuration Release --no-restore
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
-          cache-dependency-path: frontend/package-lock.json
+          cache-dependency-path: daycareapp/frontend/package-lock.json
 
       - name: Build frontend
-        working-directory: frontend
+        working-directory: daycareapp/frontend
         run: |
           npm ci
           npm run build
@@ -74,7 +74,7 @@ jobs:
       id-token: write
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.2.2
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -92,8 +92,8 @@ jobs:
       - name: Build and push API image
         uses: docker/build-push-action@v6
         with:
-          context: backend/DaycareApi
-          file: backend/DaycareApi/Dockerfile
+          context: daycareapp/backend/DaycareApi
+          file: daycareapp/backend/DaycareApi/Dockerfile
           push: true
           tags: |
             ${{ env.ECR_REGISTRY }}/${{ env.API_REPOSITORY }}:${{ github.sha }}
@@ -104,8 +104,8 @@ jobs:
       - name: Build and push migrations image
         uses: docker/build-push-action@v6
         with:
-          context: backend/DaycareApi
-          file: backend/DaycareApi/Dockerfile.migrations
+          context: daycareapp/backend/DaycareApi
+          file: daycareapp/backend/DaycareApi/Dockerfile.migrations
           push: true
           tags: |
             ${{ env.ECR_REGISTRY }}/${{ env.MIGRATIONS_REPOSITORY }}:${{ github.sha }}
@@ -116,8 +116,8 @@ jobs:
       - name: Build and push frontend image
         uses: docker/build-push-action@v6
         with:
-          context: frontend
-          file: frontend/Dockerfile
+          context: daycareapp/frontend
+          file: daycareapp/frontend/Dockerfile
           build-args: VITE_API_URL=
           push: true
           tags: |
