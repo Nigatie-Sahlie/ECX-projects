@@ -94,7 +94,7 @@ function GuardianPanel({ child, guardians, reload, reloadGuardians }) {
 }
 
 export default function Children() {
-  const { user } = useAuth()
+  const { user, unreadNotifications } = useAuth()
   const isAdmin = user.role === 'admin'
   const [stats, , statsErr] = useLoad(() => api('/dashboard'))
   const [search, setSearch] = useState('')
@@ -161,6 +161,33 @@ export default function Children() {
           ['Checked out today', stats?.checkedOutToday ?? 0],
           ['Reports not shared', stats?.reportsNotSharedToday ?? 0],
         ].map(([label, value]) => <div className="panel metric" key={label}><span>{label}</span><strong>{value}</strong></div>)}
+      </section>
+      <section className="operations-grid">
+        <div className="panel occupancy-panel">
+          <div className="section-heading">
+            <div><h2>Classroom occupancy &amp; ratios</h2><p className="muted">A live view of today&apos;s classroom capacity.</p></div>
+            <span className="tag ok"><span className="status-dot">●</span> All classrooms compliant</span>
+          </div>
+          <div className="occupancy-list">
+            {(rooms || []).map((room) => {
+              const capacity = Number(room.capacity) || 0
+              const count = Number(room.studentCount) || 0
+              const percent = capacity ? Math.min(100, Math.round((count / capacity) * 100)) : 0
+              return <div className="occupancy-row" key={room.id}>
+                <div className="room-icon"><span className="material-symbols-outlined">child_care</span></div>
+                <div className="room-name"><strong>{room.name}</strong><span>{room.ageGroup || 'Mixed ages'}</span></div>
+                <div className="occupancy-meter"><div className="occupancy-label"><span>Occupancy</span><strong>{count} of {capacity || '—'} enrolled ({percent}%)</strong></div><div className="progress"><span style={{ width: `${percent}%` }} /></div></div>
+                <span className="room-arrow">›</span>
+              </div>
+            })}
+            {rooms?.length === 0 && <Empty>Add a classroom to see occupancy.</Empty>}
+          </div>
+        </div>
+        <aside className="panel alert-panel">
+          <div className="section-heading"><h2>Priority center alerts</h2><span className="tag warn">Review</span></div>
+          <div className="alert-item alert-danger"><span className="material-symbols-outlined">assignment_late</span><div><strong>Keep records up to date</strong><p>Review children with missing medical or allergy notes.</p></div></div>
+          <div className="alert-item alert-warm"><span className="material-symbols-outlined">notifications_active</span><div><strong>{unreadNotifications || 0} unread notifications</strong><p>Stay current with family and classroom updates.</p></div></div>
+        </aside>
       </section>
       {isAdmin && (
         <>
