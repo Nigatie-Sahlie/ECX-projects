@@ -22,6 +22,18 @@ const AuthCtx = createContext(null)
 export const useAuth = () => useContext(AuthCtx)
 
 const ROLE_LABEL = { super_admin: 'Super admin', admin: 'Center admin', staff: 'Staff', parent: 'Parent' }
+const NAV_ICONS = {
+  '/centers': 'domain',
+  '/children': 'child_care',
+  '/staff': 'groups',
+  '/classrooms': 'meeting_room',
+  '/attendance': 'how_to_reg',
+  '/reports': 'assignment',
+  '/announcements': 'campaign',
+  '/schedule': 'event',
+  '/events': 'calendar_month',
+  '/messages': 'chat_bubble',
+}
 
 // [path, label, roles allowed, component]
 const PAGES = [
@@ -41,11 +53,15 @@ function Layout() {
   const { user, logout, notifications, unreadNotifications, unreadMessages, unreadEvents, unreadSchedules, markNotificationRead } = useAuth()
   const [menuOpen, setMenuOpen] = useState(false)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
+  const [profileOpen, setProfileOpen] = useState(false)
   const notificationMenuRef = useRef(null)
   const links = PAGES.filter((p) => p[2].includes(user.role))
   useEffect(() => {
     const closeOnOutsideClick = (event) => {
-      if (!notificationMenuRef.current?.contains(event.target)) setNotificationsOpen(false)
+      if (!notificationMenuRef.current?.contains(event.target)) {
+        setNotificationsOpen(false)
+        setProfileOpen(false)
+      }
     }
     document.addEventListener('pointerdown', closeOnOutsideClick)
     return () => document.removeEventListener('pointerdown', closeOnOutsideClick)
@@ -53,40 +69,51 @@ function Layout() {
   return (
     <div className="shell">
       <aside className={`side ${menuOpen ? 'menu-open' : ''}`}>
-        <div className="side-header"><div className="brand">KidSyncApp</div><button className="menu-toggle" aria-label="Close navigation" onClick={() => setMenuOpen(false)}>×</button></div>
+        <div className="side-header"><div className="brand-lockup"><span className="brand-mark">K</span><div><div className="brand">KidSyncApp</div><span className="brand-caption">Childcare center</span></div></div><button className="menu-toggle" aria-label="Close navigation" onClick={() => setMenuOpen(false)}>×</button></div>
+        <div className="nav-section-label">Operations core</div>
         <nav>
           {links.map(([path, label]) => (
             <NavLink key={path} to={path} onClick={() => setMenuOpen(false)} className={({ isActive }) => (isActive ? 'active' : '')}>
-              {label}
+              <span className="nav-link-content"><span className="material-symbols-outlined nav-icon" aria-hidden="true">{NAV_ICONS[path]}</span>{label}</span>
               {path === '/messages' && unreadMessages > 0 ? <span className="nav-badge">{unreadMessages}</span> : null}
               {path === '/schedule' && unreadSchedules > 0 ? <span className="nav-badge">{unreadSchedules}</span> : null}
               {path === '/events' && unreadEvents > 0 ? <span className="nav-badge">{unreadEvents}</span> : null}
             </NavLink>
           ))}
         </nav>
-        <div className="me">
-          <strong>{user.fullName}</strong>
-          <span>{ROLE_LABEL[user.role]}</span>
-          <div className="account-actions">
-            <NavLink to="/change-password" className="account-link">Change password</NavLink>
-            <button className="btn ghost" onClick={logout}>Sign out</button>
-          </div>
-          <div className="notification-menu" ref={notificationMenuRef}>
-            <button type="button" className="notification-trigger" aria-expanded={notificationsOpen} onClick={() => setNotificationsOpen((open) => !open)}>
-              Notifications {unreadNotifications > 0 ? `(${unreadNotifications})` : ''}
-            </button>
-            {notificationsOpen && <div className="notification-list">
-              {notifications.length === 0 ? <span className="muted">No notifications.</span> : notifications.map((item) => (
-                <button key={item.id} className={item.readAt ? '' : 'unread-notification'} onClick={() => markNotificationRead(item)}>
-                  <strong>{item.title}</strong><span>{item.body}</span>
-                </button>
-              ))}
-            </div>}
-          </div>
-        </div>
       </aside>
       <button className="mobile-menu-button" aria-label="Open navigation" onClick={() => setMenuOpen(true)}>☰</button>
       <main className="main">
+        <div className="topbar">
+          <span className="topbar-context">Today at your center</span>
+          <div className="topbar-actions" ref={notificationMenuRef}>
+            <span className="center-status"><span className="status-dot">●</span> Center is open</span>
+            <div className="notification-menu">
+              <button type="button" className="topbar-notifications" onClick={() => setNotificationsOpen((open) => !open)} aria-expanded={notificationsOpen} aria-label={`Notifications${unreadNotifications > 0 ? `, ${unreadNotifications} unread` : ''}`}>
+                <span className="material-symbols-outlined">notifications</span>
+                {unreadNotifications > 0 && <span className="notification-count">{unreadNotifications}</span>}
+              </button>
+              {notificationsOpen && <div className="notification-list">
+                {notifications.length === 0 ? <span className="muted">No notifications.</span> : notifications.map((item) => (
+                  <button key={item.id} className={item.readAt ? '' : 'unread-notification'} onClick={() => markNotificationRead(item)}>
+                    <strong>{item.title}</strong><span>{item.body}</span>
+                  </button>
+                ))}
+              </div>}
+            </div>
+            <div className="topbar-profile">
+              <button type="button" className="profile-trigger" onClick={() => setProfileOpen((open) => !open)} aria-expanded={profileOpen} aria-label="Open profile menu">
+                <span className="avatar">{user.fullName?.charAt(0)?.toUpperCase()}</span>
+              </button>
+              <div className="topbar-user"><strong>{user.fullName}</strong><span>{ROLE_LABEL[user.role]}</span></div>
+              {profileOpen && <div className="profile-menu">
+                <div className="profile-menu-heading"><strong>{user.fullName}</strong><span>{ROLE_LABEL[user.role]}</span></div>
+                <NavLink to="/change-password" onClick={() => setProfileOpen(false)}>Change password</NavLink>
+                <button type="button" onClick={logout}>Sign out</button>
+              </div>}
+            </div>
+          </div>
+        </div>
         <Outlet />
       </main>
     </div>
